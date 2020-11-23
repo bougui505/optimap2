@@ -12,7 +12,7 @@ from optimap import optimap
 import torch
 
 
-def permoptim(A, B):
+def permoptim(A, B, P=None):
     """
     Find a permutation P that minimizes the sum of square errors ||AP-B||^2
     See: https://math.stackexchange.com/a/3226657/192193
@@ -40,7 +40,9 @@ def permoptim(A, B):
     n, p = A.shape[0], B.shape[0]
     B_expand = numpy.zeros((A.shape[1], B.shape[0]))
     B_expand[:p] = B
-    C = A.T.dot(B_expand)
+    if P is None:
+        P = numpy.eye(A.shape[0])
+    C = A.T.dot(P.T).dot(B_expand)
     costmat = C.max() - C
     costmat[p:] = 9999.99
     costmat[:, p:] = 9999.99
@@ -62,7 +64,7 @@ def permiter(coords, coords_ref, n_step=100):
     coords_P = P.dot(coords)
     A_optim = optimap.get_cmap(torch.from_numpy(coords_P), 'cpu', ca_switch=True).numpy()
     for i in range(n_step):
-        P = permoptim(A_optim, B)
+        P = permoptim(A_optim, B, P)
         coords_P = P.dot(coords_P)
         A_optim = optimap.get_cmap(torch.from_numpy(coords_P), 'cpu', ca_switch=True).numpy()
         score = ((A_optim - B)**2).sum()
@@ -98,8 +100,8 @@ if __name__ == '__main__':
     P = permoptim(A, B)
     coords_P = P.dot(coords1)
     A_P = optimap.get_cmap(torch.from_numpy(coords_P), 'cpu', ca_switch=True).numpy()
-    plt.matshow(A_P)
-    plt.savefig('cmap_P.png')
+    # plt.matshow(A_P)
+    # plt.savefig('cmap_P.png')
     A_optim = permiter(coords1, coords_ref, n_step=1000)
     plt.matshow(A_optim)
     plt.savefig('cmap_optim.png')
