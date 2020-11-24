@@ -27,7 +27,7 @@ def get_coords(pdbfilename, object, selection=None):
     return coords
 
 
-def get_cmap(coords, threshold=8., ca_switch=False, dist_ca=3.8, sigma_ca=0.1):
+def get_cmap(coords, threshold=8., ca_switch=True, dist_ca=3.8, sigma_ca=0.1):
     """
     - ca_switch: if True, apply a different distance threshold for consecutive CA
     - dist_ca: C-alpha - C-alpha distance
@@ -91,25 +91,31 @@ def permoptim(A, B, P=None):
     return P
 
 
-def permiter(coords, cmap_ref, n_step=100):
-    A = get_cmap(coords1, ca_switch=True)
+def permiter(coords, cmap_ref, n_step=10000):
+    A = get_cmap(coords1)
     B = cmap_ref
     P = permoptim(A, B)
     P_total = P.copy()
     coords_P = P.dot(coords)
-    A_optim = get_cmap(coords_P, ca_switch=True)
+    A_optim = get_cmap(coords_P)
+    scores = []
     with open('permiter.log', 'w') as logfile:
         for i in range(n_step):
             P = permoptim(A_optim, B, P)
             P_total = P.dot(P_total)
             coords_P = P.dot(coords_P)
-            A_optim = get_cmap(coords_P, ca_switch=True)
+            A_optim = get_cmap(coords_P)
             score = ((A_optim - B)**2).sum()
             logfile.write(f'{i+1}/{n_step} {score}\n')
             sys.stdout.write(f'{i+1}/{n_step} {score}        \r')
             sys.stdout.flush()
+            scores.append(score)
+            if (scores[-1] == numpy.asarray(scores)).sum() > 10:
+                print()
+                print("Early stop")
+                break
     print()
-    return get_cmap(P_total.dot(coords), ca_switch=True)
+    return get_cmap(P_total.dot(coords)), P_total
 
 
 if __name__ == '__main__':
@@ -128,12 +134,12 @@ if __name__ == '__main__':
     if args.test:
         doctest.testmod()
         sys.exit(0)
-    
+
     coords1 = get_coords(args.pdb1, 'shuf')
-    A = get_cmap(coords1, ca_switch=True)
+    A = get_cmap(coords1)
     if args.pdb2 is not None:
         coords_ref = get_coords(args.pdb2, 'ref')
-        B = get_cmap(coords_ref, ca_switch=True)
+        B = get_cmap(coords_ref)
     else:
         B = numpy.load(args.cmap)
     plt.matshow(A)
@@ -142,9 +148,11 @@ if __name__ == '__main__':
     plt.savefig('cmap_ref.png')
     P = permoptim(A, B)
     coords_P = P.dot(coords1)
-    A_P = get_cmap(coords_P, ca_switch=True)
+    A_P = get_cmap(coords_P)
     # plt.matshow(A_P)
     # plt.savefig('cmap_P.png')
-    A_optim = permiter(coords1, B, n_step=1000)
+    A_optim, P = permiter(coords1, B)
     plt.matshow(A_optim)
     plt.savefig('cmap_optim.png')
+    cmd.load_coords(P.dot(coords1), 'shuf')
+    cmd.save('coords_optim.pdb', 'shuf')
