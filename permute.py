@@ -91,12 +91,16 @@ def permoptim(A, B, P=None):
     return P
 
 
+def permute_coords(coords, P):
+    return P.dot(coords)
+
+
 def permiter(coords, cmap_ref, n_step=10000):
     A = get_cmap(coords1)
     B = cmap_ref
     P = permoptim(A, B)
     P_total = P.copy()
-    coords_P = P.dot(coords)
+    coords_P = permute_coords(coords, P)
     A_optim = get_cmap(coords_P)
     scores = []
     score_steps = []
@@ -104,7 +108,7 @@ def permiter(coords, cmap_ref, n_step=10000):
         for i in range(n_step):
             P = permoptim(A_optim, B, P)
             P_total = P.dot(P_total)
-            coords_P = P.dot(coords_P)
+            coords_P = permute_coords(coords_P, P)
             A_optim = get_cmap(coords_P)
             score = ((A_optim - B)**2).sum()
             logfile.write(f'{i+1}/{n_step} {score}\n')
@@ -157,12 +161,12 @@ if __name__ == '__main__':
     plt.matshow(B)
     plt.savefig('cmap_ref.png')
     P = permoptim(A, B)
-    coords_P = P.dot(coords1)
+    coords_P = permute_coords(coords1, P)
     A_P = get_cmap(coords_P)
     # plt.matshow(A_P)
     # plt.savefig('cmap_P.png')
     A_optim, P = permiter(coords1, B, n_step=args.niter)
     plt.matshow(A_optim)
     plt.savefig('cmap_optim.png')
-    cmd.load_coords(P.dot(coords1), 'shuf')
+    cmd.load_coords(permute_coords(coords1, P), 'shuf')
     cmd.save('coords_optim.pdb', 'shuf')
