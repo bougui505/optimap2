@@ -99,6 +99,7 @@ def permiter(coords, cmap_ref, n_step=10000):
     coords_P = P.dot(coords)
     A_optim = get_cmap(coords_P)
     scores = []
+    score_steps = []
     with open('permiter.log', 'w') as logfile:
         for i in range(n_step):
             P = permoptim(A_optim, B, P)
@@ -107,13 +108,21 @@ def permiter(coords, cmap_ref, n_step=10000):
             A_optim = get_cmap(coords_P)
             score = ((A_optim - B)**2).sum()
             logfile.write(f'{i+1}/{n_step} {score}\n')
-            sys.stdout.write(f'{i+1}/{n_step} {score}        \r')
+            sys.stdout.write(f'{i+1}/{n_step} {score}                          \r')
             sys.stdout.flush()
             scores.append(score)
             if (scores[-1] == numpy.asarray(scores)).sum() > 10:
                 print()
-                print("Early stop")
-                break
+                score_steps.append(scores[-1])
+                _, counts = numpy.unique(score_steps, return_counts=True)
+                count = max(counts)
+                if count >= 3:
+                    print("Early stop")
+                    break
+                else:
+                    print("Adding noise to escape local minima")
+                    noise = numpy.random.uniform(size=P.shape)
+                    P += noise
     print()
     return get_cmap(P_total.dot(coords)), P_total
 
@@ -129,6 +138,7 @@ if __name__ == '__main__':
     parser.add_argument('--pdb1', help='pdb filename of coordinates to permute', type=str)
     parser.add_argument('--pdb2', help='pdb filename of reference coordinates', type=str)
     parser.add_argument('--cmap', help='npy file of the target -- reference -- contact map', type=str)
+    parser.add_argument('--niter', help='Number of iterations', type=int)
     args = parser.parse_args()
 
     if args.test:
@@ -151,7 +161,7 @@ if __name__ == '__main__':
     A_P = get_cmap(coords_P)
     # plt.matshow(A_P)
     # plt.savefig('cmap_P.png')
-    A_optim, P = permiter(coords1, B)
+    A_optim, P = permiter(coords1, B, n_step=args.niter)
     plt.matshow(A_optim)
     plt.savefig('cmap_optim.png')
     cmd.load_coords(P.dot(coords1), 'shuf')
