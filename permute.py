@@ -135,12 +135,13 @@ def permiter(coords, cmap_ref, n_step=10000):
             sys.stdout.write(f'{i+1}/{n_step} {score}                          \r')
             sys.stdout.flush()
             scores.append(score)
-            if (numpy.isclose(scores[-1], scores, atol=1e-3, rtol=0)).sum() > 10:
+            # if (numpy.isclose(scores[-1], scores, atol=1e-3, rtol=0)).sum() > 10:
+            if (scores[-1] == numpy.asarray(scores)).sum() > 3:
                 print()
                 score_steps.append(scores[-1])
                 _, counts = numpy.unique(score_steps, return_counts=True)
                 count = max(counts)
-                if count > 10:
+                if count > 3:
                     print("Early stop")
                     break
                 else:
