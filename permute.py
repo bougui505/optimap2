@@ -97,13 +97,15 @@ def permiter(coords, cmap_ref, n_step=100):
     P = permoptim(A, B)
     coords_P = P.dot(coords)
     A_optim = get_cmap(coords_P, ca_switch=True)
-    for i in range(n_step):
-        P = permoptim(A_optim, B, P)
-        coords_P = P.dot(coords_P)
-        A_optim = get_cmap(coords_P, ca_switch=True)
-        score = ((A_optim - B)**2).sum()
-        sys.stdout.write(f'{i+1}/{n_step} {score}        \r')
-        sys.stdout.flush()
+    with open('permiter.log', 'w') as logfile:
+        for i in range(n_step):
+            P = permoptim(A_optim, B, P)
+            coords_P = P.dot(coords_P)
+            A_optim = get_cmap(coords_P, ca_switch=True)
+            score = ((A_optim - B)**2).sum()
+            logfile.write(f'{i+1}/{n_step} {score}\n')
+            sys.stdout.write(f'{i+1}/{n_step} {score}        \r')
+            sys.stdout.flush()
     print()
     return A_optim
 
