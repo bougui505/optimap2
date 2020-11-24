@@ -46,6 +46,23 @@ def get_cmap(coords, threshold=8., ca_switch=True, dist_ca=3.8, sigma_ca=0.1):
     return cmap
 
 
+def fix_shape(A, B):
+    n = A.shape[0]
+    p = B.shape[0]
+    if n > p:
+        A_expand = A
+        B_expand = numpy.zeros((n, n))
+        B_expand[:p, :p] = B
+    elif n < p:
+        A_expand = numpy.zeros((p, p))
+        A_expand[:n, :n] = A
+        B_expand = B
+    else:
+        A_expand = A
+        B_expand = B
+    return A_expand, B_expand
+
+
 def permoptim(A, B, P=None):
     """
     Find a permutation P that minimizes the sum of square errors ||AP-B||^2
@@ -66,17 +83,17 @@ def permoptim(A, B, P=None):
     >>> B.shape
     (3, 3)
     >>> P = permoptim(A, B)
-    >>> (P == P0).all()
+    >>> P = P[:3, :3]
+    >>> (P == P0[:3]).all()
     True
-    >>> (A.dot(P)[:B.shape[0]] == B).all()
+    >>> (A[:3, :3].dot(P)[:B.shape[0]] == B).all()
     True
     """
     n, p = A.shape[0], B.shape[0]
-    B_expand = numpy.zeros((A.shape[1], B.shape[0]))
-    B_expand[:p] = B
+    A, B = fix_shape(A, B)
     if P is None:
         P = numpy.eye(A.shape[0])
-    C = A.T.dot(P.T).dot(B_expand)
+    C = A.T.dot(P.T).dot(B)
     costmat = C.max() - C
     costmat[p:] = 9999.99
     costmat[:, p:] = 9999.99
@@ -98,6 +115,7 @@ def permute_coords(coords, P):
 def permiter(coords, cmap_ref, n_step=10000):
     A = get_cmap(coords1)
     B = cmap_ref
+    A, B = fix_shape(A, B)
     P = permoptim(A, B)
     P_total = P.copy()
     coords_P = permute_coords(coords, P)
@@ -115,7 +133,7 @@ def permiter(coords, cmap_ref, n_step=10000):
             sys.stdout.write(f'{i+1}/{n_step} {score}                          \r')
             sys.stdout.flush()
             scores.append(score)
-            if (scores[-1] == numpy.asarray(scores)).sum() > 10:
+            if (numpy.isclose(scores[-1], scores, atol=1e-3, rtol=0)).sum() > 10:
                 print()
                 score_steps.append(scores[-1])
                 _, counts = numpy.unique(score_steps, return_counts=True)
