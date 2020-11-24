@@ -6,6 +6,7 @@
 # 2020-11-23 15:23:00 (UTC+0100)
 
 import sys
+import os
 import numpy
 import scipy.optimize as optimize
 import scipy.spatial.distance as distance
@@ -164,10 +165,18 @@ if __name__ == '__main__':
     parser.add_argument('--pdb2', help='pdb filename of reference coordinates', type=str)
     parser.add_argument('--cmap', help='npy file of the target -- reference -- contact map', type=str)
     parser.add_argument('--niter', help='Number of iterations', type=int)
+    parser.add_argument('--get_cmap', help='Compute the contact map from the given pdb and exit', type=str)
     args = parser.parse_args()
 
     if args.test:
         doctest.testmod()
+        sys.exit(0)
+
+    if args.get_cmap is not None:
+        coords = get_coords(args.get_cmap, 'pdbin')
+        cmap = get_cmap(coords)
+        basename = os.path.splitext(args.get_cmap)[0]
+        numpy.save(f'{basename}_cmap.npy', cmap)
         sys.exit(0)
 
     coords1 = get_coords(args.pdb1, 'shuf')
