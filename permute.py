@@ -9,10 +9,22 @@ import sys
 import numpy
 import scipy.optimize as optimize
 import scipy.spatial.distance as distance
+from pymol import cmd
 
 
 def sigmoid(x):
     return 1 / (1 + numpy.exp(-x))
+
+
+def get_coords(pdbfilename, object, selection=None):
+    if selection is None:
+        selection = f'{object} and name CA'
+    else:
+        selection = f'{object} and name CA and {selection}'
+    cmd.load(pdbfilename, object=object)
+    cmd.remove(f'not ({selection}) and {object}')
+    coords = cmd.get_coords(selection=object)
+    return coords
 
 
 def get_cmap(coords, threshold=8., ca_switch=False, dist_ca=3.8, sigma_ca=0.1):
@@ -79,9 +91,9 @@ def permoptim(A, B, P=None):
     return P
 
 
-def permiter(coords, coords_ref, n_step=100):
+def permiter(coords, cmap_ref, n_step=100):
     A = get_cmap(coords1, ca_switch=True)
-    B = get_cmap(coords_ref, ca_switch=True)
+    B = cmap_ref
     P = permoptim(A, B)
     coords_P = P.dot(coords)
     A_optim = get_cmap(coords_P, ca_switch=True)
@@ -92,6 +104,7 @@ def permiter(coords, coords_ref, n_step=100):
         score = ((A_optim - B)**2).sum()
         sys.stdout.write(f'{i+1}/{n_step} {score}        \r')
         sys.stdout.flush()
+    print()
     return A_optim
 
 
@@ -103,18 +116,22 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='')
     # parser.add_argument(name or flags...[, action][, nargs][, const][, default][, type][, choices][, required][, help][, metavar][, dest])
     parser.add_argument('--test', default=False, action='store_true', help='test the code')
-    parser.add_argument('--coords1', help='Filename of coordinates to permute', type=str)
-    parser.add_argument('--coords2', help='Filename of reference coordinates', type=str)
+    parser.add_argument('--pdb1', help='pdb filename of coordinates to permute', type=str)
+    parser.add_argument('--pdb2', help='pdb filename of reference coordinates', type=str)
+    parser.add_argument('--cmap', help='npy file of the target -- reference -- contact map', type=str)
     args = parser.parse_args()
 
     if args.test:
         doctest.testmod()
         sys.exit(0)
     
-    coords1 = numpy.genfromtxt(args.coords1)
-    coords_ref = numpy.genfromtxt(args.coords2)
+    coords1 = get_coords(args.pdb1, 'shuf')
     A = get_cmap(coords1, ca_switch=True)
-    B = get_cmap(coords_ref, ca_switch=True)
+    if args.pdb2 is not None:
+        coords_ref = get_coords(args.pdb2, 'ref')
+        B = get_cmap(coords_ref, ca_switch=True)
+    else:
+        B = numpy.load(args.cmap)
     plt.matshow(A)
     plt.savefig('cmap_shuf.png')
     plt.matshow(B)
@@ -124,6 +141,6 @@ if __name__ == '__main__':
     A_P = get_cmap(coords_P, ca_switch=True)
     # plt.matshow(A_P)
     # plt.savefig('cmap_P.png')
-    A_optim = permiter(coords1, coords_ref, n_step=1000)
+    A_optim = permiter(coords1, B, n_step=1000)
     plt.matshow(A_optim)
     plt.savefig('cmap_optim.png')
