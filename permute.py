@@ -94,9 +94,10 @@ def permoptim(A, B, P=None):
     if P is None:
         P = numpy.eye(A.shape[0])
     C = A.T.dot(P.T).dot(B)
-    costmat = C.max() - C
-    costmat[p:] = 9999.99
-    costmat[:, p:] = 9999.99
+    cmax = C.max()
+    costmat = cmax - C
+    costmat[p:] = cmax + 9999.99
+    costmat[:, p:] = cmax + 9999.99
     row_ind, col_ind = optimize.linear_sum_assignment(costmat)
     P = numpy.zeros((n, n))
     assignment = -numpy.ones(n, dtype=int)
@@ -115,6 +116,7 @@ def permute_coords(coords, P):
 def permiter(coords, cmap_ref, n_step=10000):
     A = get_cmap(coords1)
     B = cmap_ref
+    n = B.shape[0]
     A, B = fix_shape(A, B)
     P = permoptim(A, B)
     P_total = P.copy()
@@ -128,7 +130,7 @@ def permiter(coords, cmap_ref, n_step=10000):
             P_total = P.dot(P_total)
             coords_P = permute_coords(coords_P, P)
             A_optim = get_cmap(coords_P)
-            score = ((A_optim - B)**2).sum()
+            score = ((A_optim - B)**2)[:n, :n].sum()
             logfile.write(f'{i+1}/{n_step} {score}\n')
             sys.stdout.write(f'{i+1}/{n_step} {score}                          \r')
             sys.stdout.flush()
