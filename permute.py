@@ -116,7 +116,7 @@ def permiter(coords, cmap_ref, n_step=10000):
                 score_steps.append(scores[-1])
                 _, counts = numpy.unique(score_steps, return_counts=True)
                 count = max(counts)
-                if count >= 3:
+                if count > 10:
                     print("Early stop")
                     break
                 else:
