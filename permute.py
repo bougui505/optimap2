@@ -8,8 +8,30 @@
 import sys
 import numpy
 import scipy.optimize as optimize
-from optimap import optimap
-import torch
+import scipy.spatial.distance as distance
+
+
+def sigmoid(x):
+    return 1 / (1 + numpy.exp(-x))
+
+
+def get_cmap(coords, threshold=8., ca_switch=False, dist_ca=3.8, sigma_ca=0.1):
+    """
+    - ca_switch: if True, apply a different distance threshold for consecutive CA
+    - dist_ca: C-alpha - C-alpha distance
+    """
+    pdist = distance.squareform(distance.pdist(coords))
+    cmap_S = sigmoid(threshold - pdist)
+    if ca_switch:
+        n = coords.shape[0]
+        A = numpy.meshgrid(numpy.arange(n), numpy.arange(n))
+        dist_to_diag = numpy.abs(A[1] - A[0])
+        cmap_G = numpy.exp(-(pdist - dist_ca)**2 / (2 * sigma_ca**2))
+        mask = dist_to_diag == 1
+        cmap = numpy.where(mask, cmap_G, cmap_S)
+    else:
+        cmap = cmap_S
+    return cmap
 
 
 def permoptim(A, B, P=None):
@@ -58,15 +80,15 @@ def permoptim(A, B, P=None):
 
 
 def permiter(coords, coords_ref, n_step=100):
-    A = optimap.get_cmap(torch.from_numpy(coords1), 'cpu', ca_switch=True).numpy()
-    B = optimap.get_cmap(torch.from_numpy(coords_ref), 'cpu', ca_switch=True).numpy()
+    A = get_cmap(coords1, ca_switch=True)
+    B = get_cmap(coords_ref, ca_switch=True)
     P = permoptim(A, B)
     coords_P = P.dot(coords)
-    A_optim = optimap.get_cmap(torch.from_numpy(coords_P), 'cpu', ca_switch=True).numpy()
+    A_optim = get_cmap(coords_P, ca_switch=True)
     for i in range(n_step):
         P = permoptim(A_optim, B, P)
         coords_P = P.dot(coords_P)
-        A_optim = optimap.get_cmap(torch.from_numpy(coords_P), 'cpu', ca_switch=True).numpy()
+        A_optim = get_cmap(coords_P, ca_switch=True)
         score = ((A_optim - B)**2).sum()
         sys.stdout.write(f'{i+1}/{n_step} {score}        \r')
         sys.stdout.flush()
@@ -91,15 +113,15 @@ if __name__ == '__main__':
     
     coords1 = numpy.genfromtxt(args.coords1)
     coords_ref = numpy.genfromtxt(args.coords2)
-    A = optimap.get_cmap(torch.from_numpy(coords1), 'cpu', ca_switch=True).numpy()
-    B = optimap.get_cmap(torch.from_numpy(coords_ref), 'cpu', ca_switch=True).numpy()
+    A = get_cmap(coords1, ca_switch=True)
+    B = get_cmap(coords_ref, ca_switch=True)
     plt.matshow(A)
     plt.savefig('cmap_shuf.png')
     plt.matshow(B)
     plt.savefig('cmap_ref.png')
     P = permoptim(A, B)
     coords_P = P.dot(coords1)
-    A_P = optimap.get_cmap(torch.from_numpy(coords_P), 'cpu', ca_switch=True).numpy()
+    A_P = get_cmap(coords_P, ca_switch=True)
     # plt.matshow(A_P)
     # plt.savefig('cmap_P.png')
     A_optim = permiter(coords1, coords_ref, n_step=1000)
