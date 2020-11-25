@@ -12,6 +12,7 @@ import scipy.optimize as optimize
 import scipy.spatial.distance as distance
 from scipy.linalg import block_diag
 from pymol import cmd
+import Traj
 
 
 def sigmoid(x):
@@ -115,7 +116,7 @@ def permute_coords(coords, P):
     return P.dot(coords)
 
 
-def permiter(coords, cmap_ref, n_step=10000):
+def permiter(coords, cmap_ref, n_step=10000, save_traj=False, topology=None, outtrajfilename='permiter.dcd'):
     A = get_cmap(coords1)
     B = cmap_ref
     n = B.shape[0]
@@ -126,11 +127,15 @@ def permiter(coords, cmap_ref, n_step=10000):
     A_optim = get_cmap(coords_P)
     scores = []
     score_steps = []
+    if save_traj:
+        traj = Traj.Traj(topology)
     with open('permiter.log', 'w') as logfile:
         for i in range(n_step):
             P = permoptim(A_optim, B, P)
             P_total = P.dot(P_total)
             coords_P = permute_coords(coords_P, P)
+            if save_traj:
+                traj.append(coords_P)
             A_optim = get_cmap(coords_P)
             score = ((A_optim - B)**2)[:n, :n].sum()
             logfile.write(f'{i+1}/{n_step} {score}\n')
@@ -151,6 +156,8 @@ def permiter(coords, cmap_ref, n_step=10000):
                     noise = numpy.random.uniform(size=P.shape)
                     P += noise
     print()
+    if save_traj:
+        traj.save(outtrajfilename)
     return get_cmap(P_total.dot(coords)), P_total
 
 
@@ -167,6 +174,7 @@ if __name__ == '__main__':
     parser.add_argument('--cmap', help='npy file of the target -- reference -- contact map. Multiple files can be given. In that case, the matrices will be concatenated as a block diagonal matrix', nargs='+', type=str)
     parser.add_argument('--niter', help='Number of iterations', type=int)
     parser.add_argument('--get_cmap', help='Compute the contact map from the given pdb and exit', type=str)
+    parser.add_argument('--save_traj', help='Filename of an output dcd file to save optimization trajectory (optional)', type=str)
     args = parser.parse_args()
 
     if args.test:
@@ -199,7 +207,13 @@ if __name__ == '__main__':
     A_P = get_cmap(coords_P)
     # plt.matshow(A_P)
     # plt.savefig('cmap_P.png')
-    A_optim, P = permiter(coords1, B, n_step=args.niter)
+    if args.save_traj is not None:
+        save_traj = True
+    else:
+        save_traj = False
+    A_optim, P = permiter(coords1, B, n_step=args.niter,
+                          save_traj=save_traj, topology=args.pdb1,
+                          outtrajfilename=args.save_traj)
     plt.matshow(A_optim)
     plt.savefig('cmap_optim.png')
     cmd.load_coords(permute_coords(coords1, P), 'shuf')
