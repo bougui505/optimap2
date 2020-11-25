@@ -10,6 +10,7 @@ import os
 import numpy
 import scipy.optimize as optimize
 import scipy.spatial.distance as distance
+from scipy.linalg import block_diag
 from pymol import cmd
 
 
@@ -163,7 +164,7 @@ if __name__ == '__main__':
     parser.add_argument('--test', default=False, action='store_true', help='test the code')
     parser.add_argument('--pdb1', help='pdb filename of coordinates to permute', type=str)
     parser.add_argument('--pdb2', help='pdb filename of reference coordinates', type=str)
-    parser.add_argument('--cmap', help='npy file of the target -- reference -- contact map', type=str)
+    parser.add_argument('--cmap', help='npy file of the target -- reference -- contact map. Multiple files can be given. In that case, the matrices will be concatenated as a block diagonal matrix', nargs='+', type=str)
     parser.add_argument('--niter', help='Number of iterations', type=int)
     parser.add_argument('--get_cmap', help='Compute the contact map from the given pdb and exit', type=str)
     args = parser.parse_args()
@@ -185,7 +186,10 @@ if __name__ == '__main__':
         coords_ref = get_coords(args.pdb2, 'ref')
         B = get_cmap(coords_ref)
     else:
-        B = numpy.load(args.cmap)
+        cmaps = []
+        for cmap in args.cmap:
+            cmaps.append(numpy.load(cmap))
+        B = block_diag(*cmaps)
     plt.matshow(A)
     plt.savefig('cmap_shuf.png')
     plt.matshow(B)
