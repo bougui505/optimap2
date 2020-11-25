@@ -16,7 +16,7 @@ class Traj(object):
         - pmlobject: pymol object
         """
         cmd.load(topology, 'traj')
-        self.nframes = 1
+        self.nframes = cmd.count_states()
 
     def append(self, coords):
         """
