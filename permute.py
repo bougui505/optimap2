@@ -49,48 +49,50 @@ def get_cmap(coords, threshold=8., ca_switch=True, dist_ca=3.8, sigma_ca=0.1):
     return cmap
 
 
-def fix_shape(A, B):
-    n = A.shape[0]
-    p = B.shape[0]
-    if n > p:
-        A_expand = A
-        B_expand = numpy.zeros((n, n))
-        B_expand[:p, :p] = B
-    elif n < p:
-        A_expand = numpy.zeros((p, p))
-        A_expand[:n, :n] = A
-        B_expand = B
-    else:
-        A_expand = A
-        B_expand = B
-    return A_expand, B_expand
-
-
 def permoptim(A, B, P=None):
     """
     Find a permutation P that minimizes the sum of square errors ||AP-B||^2
     See: https://math.stackexchange.com/a/3226657/192193
     """
     n, p = A.shape[0], B.shape[0]
-    A, B = fix_shape(A, B)
     if P is None:
-        P = numpy.eye(A.shape[0])
+        if n > p:
+            P = numpy.block([numpy.identity(p), numpy.zeros((p, n - p))])
+        if n < p:
+            P = numpy.block([numpy.identity(n), numpy.zeros((n, p - n))]).T
+        if n == p:
+            P = numpy.identity(n)
     C = A.T.dot(P.T).dot(B)
     cmax = C.max()
     costmat = cmax - C
     row_ind, col_ind = optimize.linear_sum_assignment(costmat)
-    P = numpy.zeros((n, n))
+    P = numpy.zeros((p, n))
     assignment = -numpy.ones(n, dtype=int)
     assignment[col_ind] = row_ind
     assignment = assignment[assignment > -1]
-    P[assignment, numpy.arange(len(assignment))] = 1.
-    P = P.T
-    P = P[:, P.sum(axis=0) != 0]
+    P[numpy.arange(len(assignment)), assignment] = 1.
+    # P = P.T
+    # P = P[P.sum(axis=0) != 0]
     return P
 
 
-def permute_coords(coords, P):
-    return P.dot(coords)
+def permute_coords(coords, P, same=True):
+    """
+    Permute the coordinates using P
+    If same is True, return a coordinates array with the same shape as the input coords
+    """
+    p, n = P.shape
+    if p < n and same:
+        sel = (P.sum(axis=0) == 0)
+        inds = numpy.where(sel)  # Coordinates not used
+        P1 = numpy.zeros((n - p, n))
+        P1[range(n - p), inds] = 1
+        P = numpy.block([[P], [P1]])
+    coords_P = P.dot(coords)
+    if same:
+        return coords_P, P
+    else:
+        return coords_P
 
 
 def permiter(coords, cmap_ref, n_step=10000, save_traj=False, topology=None, outtrajfilename='permiter.dcd'):
@@ -98,10 +100,9 @@ def permiter(coords, cmap_ref, n_step=10000, save_traj=False, topology=None, out
     B = cmap_ref
     n = coords.shape[0]
     p = B.shape[0]
-    A, B = fix_shape(A, B)
     P = permoptim(A, B)
+    coords_P, P = permute_coords(coords, P)
     P_total = P.copy()
-    coords_P = permute_coords(coords, P)
     A_optim = get_cmap(coords_P)
     scores = []
     score_steps = []
@@ -109,13 +110,13 @@ def permiter(coords, cmap_ref, n_step=10000, save_traj=False, topology=None, out
         traj = Traj.Traj(topology)
     with open('permiter.log', 'w') as logfile:
         for i in range(n_step):
-            P = permoptim(A_optim, B, P)
+            P = permoptim(A_optim, B, P[:p, :n])
+            coords_P, P = permute_coords(coords_P, P)
             P_total = P.dot(P_total)
-            coords_P = permute_coords(coords_P, P)
             if save_traj:
                 traj.append(coords_P)
             A_optim = get_cmap(coords_P)
-            score = ((A_optim - B)**2)[:p][:, :p].sum()
+            score = ((A_optim[:p][:, :p] - B)**2).sum()
             logfile.write(f'{i+1}/{n_step} {score}\n')
             sys.stdout.write(f'{i+1}/{n_step} {score}                          \r')
             sys.stdout.flush()
@@ -176,9 +177,11 @@ if __name__ == '__main__':
         for cmap in args.cmap:
             cmaps.append(numpy.load(cmap))
         B = block_diag(*cmaps)
+    P = permoptim(A, B)
     print(f"X: {coords1.shape}")
     print(f"A: {A.shape}")
     print(f"B: {B.shape}")
+    print(f"P: {P.shape}")
     plt.matshow(A)
     plt.savefig('cmap_shuf.png')
     plt.clf()
@@ -192,7 +195,7 @@ if __name__ == '__main__':
     A_optim, P = permiter(coords1, B, n_step=args.niter,
                           save_traj=save_traj, topology=args.pdb1,
                           outtrajfilename=args.save_traj)
-    coords_out = permute_coords(coords1, P)
+    coords_out = permute_coords(coords1, P, same=False)
     A_optim = get_cmap(coords_out)
     plt.matshow(A_optim)
     plt.savefig('cmap_optim.png')
