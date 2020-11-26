@@ -202,7 +202,6 @@ if __name__ == '__main__':
     plt.savefig('cmap_shuf.png')
     plt.matshow(B)
     plt.savefig('cmap_ref.png')
-    P = permoptim(A, B)
     if args.save_traj is not None:
         save_traj = True
     else:
