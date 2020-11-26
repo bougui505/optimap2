@@ -76,6 +76,22 @@ def permoptim(A, B, P=None):
     return P
 
 
+def add_coords(coords, r):
+    """
+    Add r zero coordinates to coords
+    """
+    print(f"Adding {r} coordinates")
+    return numpy.block([[coords], [numpy.zeros((r, 3))]])
+
+
+def zero_mask(coords):
+    """
+    Mask for the added coordinates
+    """
+    mask = (coords.sum(axis=1) == 0.)
+    return mask
+
+
 def permute_coords(coords, P, same=True):
     """
     Permute the coordinates using P
@@ -88,12 +104,6 @@ def permute_coords(coords, P, same=True):
         P1 = numpy.zeros((n - p, n))
         P1[range(n - p), inds] = 1
         P = numpy.block([[P], [P1]])
-    elif p > n and same:  # FIXME
-        sel = (P.sum(axis=1) == 0)
-        inds = numpy.where(sel)  # Coordinates not used
-        P1 = numpy.zeros((p, p - n))
-        P1[inds, range(p - n)] = 1
-        P = numpy.block([P, P1])
     coords_P = P.dot(coords)
     if same:
         return coords_P, P
@@ -122,7 +132,8 @@ def permiter(coords, cmap_ref, n_step=10000, save_traj=False, topology=None, out
             if save_traj:
                 traj.append(coords_P)
             A_optim = get_cmap(coords_P)
-            score = ((A_optim[:p][:, :p] - B)**2).sum()
+            mask = zero_mask(coords_P)
+            score = ((A_optim[:p][:, :p] - B)**2)[~mask].sum()
             logfile.write(f'{i+1}/{n_step} {score}\n')
             sys.stdout.write(f'{i+1}/{n_step} {score}                          \r')
             sys.stdout.flush()
@@ -184,10 +195,13 @@ if __name__ == '__main__':
             cmaps.append(numpy.load(cmap))
         B = block_diag(*cmaps)
     P = permoptim(A, B)
+    p, n = P.shape
     print(f"X: {coords1.shape}")
     print(f"A: {A.shape}")
     print(f"B: {B.shape}")
     print(f"P: {P.shape}")
+    if n < p:
+        coords1 = add_coords(coords1, p - n)
     plt.matshow(A)
     plt.savefig('cmap_shuf.png')
     plt.clf()
@@ -202,9 +216,12 @@ if __name__ == '__main__':
                           save_traj=save_traj, topology=args.pdb1,
                           outtrajfilename=args.save_traj)
     coords_out = permute_coords(coords1, P, same=False)
+    mask = zero_mask(coords_out)
     A_optim = get_cmap(coords_out)
+    A_optim[mask, :] = 0.
     plt.matshow(A_optim)
     plt.savefig('cmap_optim.png')
     plt.clf()
+    coords_out = coords_out[~mask]
     cmd.load_coords(coords_out, 'shuf')
     cmd.save('coords_optim.pdb', 'shuf')
