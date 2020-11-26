@@ -49,78 +49,35 @@ def get_cmap(coords, threshold=8., ca_switch=True, dist_ca=3.8, sigma_ca=0.1):
     return cmap
 
 
-def fix_shape(A, B, coords=None):
+def fix_shape(A, B):
     n = A.shape[0]
     p = B.shape[0]
     if n > p:
         A_expand = A
         B_expand = numpy.zeros((n, n))
         B_expand[:p, :p] = B
-        mask = numpy.zeros((n, n), dtype=bool)
-        mask[p:, :] = True
-        mask[:, p:] = True
-        if coords is not None:
-            coords_expand = coords
     elif n < p:
         A_expand = numpy.zeros((p, p))
         A_expand[:n, :n] = A
         B_expand = B
-        mask = numpy.zeros((p, p), dtype=bool)
-        mask[n:, :] = True
-        mask[:, n:] = True
-        if coords is not None:
-            coords_expand = numpy.zeros((p, 3))
-            coords_expand[:n] = coords
     else:
         A_expand = A
         B_expand = B
-        mask = numpy.zeros((n, n), dtype=bool)
-        if coords is not None:
-            coords_expand = coords
-    if coords is not None:
-        return A_expand, B_expand, mask, coords_expand
-    else:
-        return A_expand, B_expand, mask
+    return A_expand, B_expand
 
 
-def permoptim(A, B, P=None, mask=None):
+def permoptim(A, B, P=None):
     """
     Find a permutation P that minimizes the sum of square errors ||AP-B||^2
     See: https://math.stackexchange.com/a/3226657/192193
-    >>> A = numpy.random.uniform(size=(3,3))
-    >>> P0 = numpy.asarray([[1,0,0], [0,0,1], [0,1,0]])
-    >>> B = A.dot(P0)
-    >>> P = permoptim(A, B)
-    >>> (P == P0).all()
-    True
-    >>> (A.dot(P) == B).all()
-    True
-
-    >>> A = numpy.random.uniform(size=(4,4))
-    >>> P0 = numpy.asarray([[1,0,0], [0,0,1], [0,1,0], [0, 0, 0]])
-    >>> B = A.dot(P0)
-    >>> B = B[:3]
-    >>> B.shape
-    (3, 3)
-    >>> P = permoptim(A, B)
-    >>> P = P[:3, :3]
-    >>> (P == P0[:3]).all()
-    True
-    >>> (A[:3, :3].dot(P)[:B.shape[0]] == B).all()
-    True
     """
     n, p = A.shape[0], B.shape[0]
-    if mask is None:
-        A, B, mask = fix_shape(A, B)
-    else:
-        A, B, _ = fix_shape(A, B)
+    A, B = fix_shape(A, B)
     if P is None:
         P = numpy.eye(A.shape[0])
     C = A.T.dot(P.T).dot(B)
     cmax = C.max()
     costmat = cmax - C
-    if mask is not None:
-        costmat[mask] = cmax + 9999.99
     row_ind, col_ind = optimize.linear_sum_assignment(costmat)
     P = numpy.zeros((n, n))
     assignment = -numpy.ones(n, dtype=int)
@@ -139,9 +96,9 @@ def permute_coords(coords, P):
 def permiter(coords, cmap_ref, n_step=10000, save_traj=False, topology=None, outtrajfilename='permiter.dcd'):
     A = get_cmap(coords)
     B = cmap_ref
-    n = B.shape[0]
-    coords_ori = coords.copy()
-    A, B, mask, coords = fix_shape(A, B, coords)
+    n = coords.shape[0]
+    p = B.shape[0]
+    A, B = fix_shape(A, B)
     P = permoptim(A, B)
     P_total = P.copy()
     coords_P = permute_coords(coords, P)
@@ -158,7 +115,7 @@ def permiter(coords, cmap_ref, n_step=10000, save_traj=False, topology=None, out
             if save_traj:
                 traj.append(coords_P)
             A_optim = get_cmap(coords_P)
-            score = ((A_optim - B)**2)[~mask].sum()
+            score = ((A_optim - B)**2)[:p][:, :p].sum()
             logfile.write(f'{i+1}/{n_step} {score}\n')
             sys.stdout.write(f'{i+1}/{n_step} {score}                          \r')
             sys.stdout.flush()
@@ -179,8 +136,7 @@ def permiter(coords, cmap_ref, n_step=10000, save_traj=False, topology=None, out
     print()
     if save_traj:
         traj.save(outtrajfilename)
-    n = coords_ori.shape[0]
-    return get_cmap(P_total[:n, :n].dot(coords[:n, :n])), P_total[:n, :n]
+    return get_cmap(P_total.dot(coords)), P_total
 
 
 if __name__ == '__main__':
@@ -190,7 +146,7 @@ if __name__ == '__main__':
     # argparse.ArgumentParser(prog=None, usage=None, description=None, epilog=None, parents=[], formatter_class=argparse.HelpFormatter, prefix_chars='-', fromfile_prefix_chars=None, argument_default=None, conflict_handler='error', add_help=True, allow_abbrev=True, exit_on_error=True)
     parser = argparse.ArgumentParser(description='')
     # parser.add_argument(name or flags...[, action][, nargs][, const][, default][, type][, choices][, required][, help][, metavar][, dest])
-    parser.add_argument('--test', default=False, action='store_true', help='test the code')
+    # parser.add_argument('--test', default=False, action='store_true', help='test the code')
     parser.add_argument('--pdb1', help='pdb filename of coordinates to permute', type=str)
     parser.add_argument('--pdb2', help='pdb filename of reference coordinates', type=str)
     parser.add_argument('--cmap', help='npy file of the target -- reference -- contact map. Multiple files can be given. In that case, the matrices will be concatenated as a block diagonal matrix', nargs='+', type=str)
@@ -199,9 +155,9 @@ if __name__ == '__main__':
     parser.add_argument('--save_traj', help='Filename of an output dcd file to save optimization trajectory (optional)', type=str)
     args = parser.parse_args()
 
-    if args.test:
-        doctest.testmod()
-        sys.exit(0)
+    # if args.test:
+    #     doctest.testmod()
+    #     sys.exit(0)
 
     if args.get_cmap is not None:
         coords = get_coords(args.get_cmap, 'pdbin')
@@ -220,6 +176,9 @@ if __name__ == '__main__':
         for cmap in args.cmap:
             cmaps.append(numpy.load(cmap))
         B = block_diag(*cmaps)
+    print(f"X: {coords1.shape}")
+    print(f"A: {A.shape}")
+    print(f"B: {B.shape}")
     plt.matshow(A)
     plt.savefig('cmap_shuf.png')
     plt.clf()
