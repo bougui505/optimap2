@@ -67,7 +67,7 @@ def permoptim(A, B, P=None):
     costmat = cmax - C
     row_ind, col_ind = optimize.linear_sum_assignment(costmat)
     P = numpy.zeros((p, n))
-    assignment = -numpy.ones(n, dtype=int)
+    assignment = -numpy.ones(max(n, p), dtype=int)
     assignment[col_ind] = row_ind
     assignment = assignment[assignment > -1]
     P[numpy.arange(len(assignment)), assignment] = 1.
@@ -82,12 +82,18 @@ def permute_coords(coords, P, same=True):
     If same is True, return a coordinates array with the same shape as the input coords
     """
     p, n = P.shape
-    if p < n and same:
+    if p < n and same:  # Works
         sel = (P.sum(axis=0) == 0)
         inds = numpy.where(sel)  # Coordinates not used
         P1 = numpy.zeros((n - p, n))
         P1[range(n - p), inds] = 1
         P = numpy.block([[P], [P1]])
+    elif p > n and same:  # FIXME
+        sel = (P.sum(axis=1) == 0)
+        inds = numpy.where(sel)  # Coordinates not used
+        P1 = numpy.zeros((p, p - n))
+        P1[inds, range(p - n)] = 1
+        P = numpy.block([P, P1])
     coords_P = P.dot(coords)
     if same:
         return coords_P, P
@@ -110,8 +116,8 @@ def permiter(coords, cmap_ref, n_step=10000, save_traj=False, topology=None, out
         traj = Traj.Traj(topology)
     with open('permiter.log', 'w') as logfile:
         for i in range(n_step):
-            P = permoptim(A_optim, B, P[:p, :n])
-            coords_P, P = permute_coords(coords_P, P)
+            P = permoptim(A_optim[:n, :n], B, P[:p, :n])
+            coords_P, P = permute_coords(coords_P[:n, :], P)
             P_total = P.dot(P_total)
             if save_traj:
                 traj.append(coords_P)
