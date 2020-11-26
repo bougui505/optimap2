@@ -49,24 +49,41 @@ def get_cmap(coords, threshold=8., ca_switch=True, dist_ca=3.8, sigma_ca=0.1):
     return cmap
 
 
-def fix_shape(A, B):
+def fix_shape(A, B, coords=None):
     n = A.shape[0]
     p = B.shape[0]
     if n > p:
         A_expand = A
         B_expand = numpy.zeros((n, n))
         B_expand[:p, :p] = B
+        mask = numpy.zeros((n, n), dtype=bool)
+        mask[p:, :] = True
+        mask[:, p:] = True
+        if coords is not None:
+            coords_expand = coords
     elif n < p:
         A_expand = numpy.zeros((p, p))
         A_expand[:n, :n] = A
         B_expand = B
+        mask = numpy.zeros((p, p), dtype=bool)
+        mask[n:, :] = True
+        mask[:, n:] = True
+        if coords is not None:
+            coords_expand = numpy.zeros((p, 3))
+            coords_expand[:n] = coords
     else:
         A_expand = A
         B_expand = B
-    return A_expand, B_expand
+        mask = numpy.zeros((n, n), dtype=bool)
+        if coords is not None:
+            coords_expand = coords
+    if coords is not None:
+        return A_expand, B_expand, mask, coords_expand
+    else:
+        return A_expand, B_expand, mask
 
 
-def permoptim(A, B, P=None):
+def permoptim(A, B, P=None, mask=None):
     """
     Find a permutation P that minimizes the sum of square errors ||AP-B||^2
     See: https://math.stackexchange.com/a/3226657/192193
@@ -93,14 +110,17 @@ def permoptim(A, B, P=None):
     True
     """
     n, p = A.shape[0], B.shape[0]
-    A, B = fix_shape(A, B)
+    if mask is None:
+        A, B, mask = fix_shape(A, B)
+    else:
+        A, B, _ = fix_shape(A, B)
     if P is None:
         P = numpy.eye(A.shape[0])
     C = A.T.dot(P.T).dot(B)
     cmax = C.max()
     costmat = cmax - C
-    costmat[p:] = cmax + 9999.99
-    costmat[:, p:] = cmax + 9999.99
+    if mask is not None:
+        costmat[mask] = cmax + 9999.99
     row_ind, col_ind = optimize.linear_sum_assignment(costmat)
     P = numpy.zeros((n, n))
     assignment = -numpy.ones(n, dtype=int)
@@ -120,7 +140,8 @@ def permiter(coords, cmap_ref, n_step=10000, save_traj=False, topology=None, out
     A = get_cmap(coords)
     B = cmap_ref
     n = B.shape[0]
-    A, B = fix_shape(A, B)
+    coords_ori = coords.copy()
+    A, B, mask, coords = fix_shape(A, B, coords)
     P = permoptim(A, B)
     P_total = P.copy()
     coords_P = permute_coords(coords, P)
@@ -137,7 +158,7 @@ def permiter(coords, cmap_ref, n_step=10000, save_traj=False, topology=None, out
             if save_traj:
                 traj.append(coords_P)
             A_optim = get_cmap(coords_P)
-            score = ((A_optim - B)**2)[:n, :n].sum()
+            score = ((A_optim - B)**2)[~mask].sum()
             logfile.write(f'{i+1}/{n_step} {score}\n')
             sys.stdout.write(f'{i+1}/{n_step} {score}                          \r')
             sys.stdout.flush()
@@ -158,7 +179,8 @@ def permiter(coords, cmap_ref, n_step=10000, save_traj=False, topology=None, out
     print()
     if save_traj:
         traj.save(outtrajfilename)
-    return get_cmap(P_total.dot(coords)), P_total
+    n = coords_ori.shape[0]
+    return get_cmap(P_total[:n, :n].dot(coords[:n, :n])), P_total[:n, :n]
 
 
 if __name__ == '__main__':
@@ -200,8 +222,10 @@ if __name__ == '__main__':
         B = block_diag(*cmaps)
     plt.matshow(A)
     plt.savefig('cmap_shuf.png')
+    plt.clf()
     plt.matshow(B)
     plt.savefig('cmap_ref.png')
+    plt.clf()
     if args.save_traj is not None:
         save_traj = True
     else:
@@ -209,7 +233,10 @@ if __name__ == '__main__':
     A_optim, P = permiter(coords1, B, n_step=args.niter,
                           save_traj=save_traj, topology=args.pdb1,
                           outtrajfilename=args.save_traj)
+    coords_out = permute_coords(coords1, P)
+    A_optim = get_cmap(coords_out)
     plt.matshow(A_optim)
     plt.savefig('cmap_optim.png')
-    cmd.load_coords(permute_coords(coords1, P), 'shuf')
+    plt.clf()
+    cmd.load_coords(coords_out, 'shuf')
     cmd.save('coords_optim.pdb', 'shuf')
