@@ -117,7 +117,7 @@ def permute_coords(coords, P):
 
 
 def permiter(coords, cmap_ref, n_step=10000, save_traj=False, topology=None, outtrajfilename='permiter.dcd'):
-    A = get_cmap(coords1)
+    A = get_cmap(coords)
     B = cmap_ref
     n = B.shape[0]
     A, B = fix_shape(A, B)
