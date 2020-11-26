@@ -133,7 +133,7 @@ def permiter(coords, cmap_ref, n_step=10000, save_traj=False, topology=None, out
                 traj.append(coords_P)
             A_optim = get_cmap(coords_P)
             mask = zero_mask(coords_P)
-            score = ((A_optim[:p][:, :p] - B)**2)[~mask].sum()
+            score = ((A_optim[:p][:, :p] - B)**2)[~mask[:p]].sum()
             logfile.write(f'{i+1}/{n_step} {score}\n')
             sys.stdout.write(f'{i+1}/{n_step} {score}                          \r')
             sys.stdout.flush()
