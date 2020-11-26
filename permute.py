@@ -203,10 +203,6 @@ if __name__ == '__main__':
     plt.matshow(B)
     plt.savefig('cmap_ref.png')
     P = permoptim(A, B)
-    coords_P = permute_coords(coords1, P)
-    A_P = get_cmap(coords_P)
-    # plt.matshow(A_P)
-    # plt.savefig('cmap_P.png')
     if args.save_traj is not None:
         save_traj = True
     else:
