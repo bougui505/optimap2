@@ -124,6 +124,7 @@ def permiter(coords, cmap_ref, n_step=10000, save_traj=False, topology=None, out
     score_steps = []
     if save_traj:
         traj = Traj.Traj(topology)
+    score_min = numpy.inf
     with open('permiter.log', 'w') as logfile:
         for i in range(n_step):
             P = permoptim(A_optim[:n, :n], B, P[:p, :n])
@@ -134,12 +135,15 @@ def permiter(coords, cmap_ref, n_step=10000, save_traj=False, topology=None, out
             A_optim = get_cmap(coords_P)
             mask = zero_mask(coords_P)
             score = ((A_optim[:p][:, :p] - B)**2)[~mask[:p]].sum()
+            if score < score_min:
+                score_min = score
+                P_best = P_total
             logfile.write(f'{i+1}/{n_step} {score}\n')
-            sys.stdout.write(f'{i+1}/{n_step} {score}                          \r')
+            sys.stdout.write(f'{i+1}/{n_step} {score:.3f}/{score_min:.3f}              \r')
             sys.stdout.flush()
             scores.append(score)
-            # if (numpy.isclose(scores[-1], scores, atol=1e-3, rtol=0)).sum() > 10:
-            if (scores[-1] == numpy.asarray(scores)).sum() > 3:
+            # if (scores[-1] == numpy.asarray(scores)).sum() > 3:
+            if (numpy.isclose(scores[-1], scores, atol=1e-3, rtol=0)).sum() > 3:
                 print()
                 score_steps.append(scores[-1])
                 _, counts = numpy.unique(score_steps, return_counts=True)
@@ -154,7 +158,7 @@ def permiter(coords, cmap_ref, n_step=10000, save_traj=False, topology=None, out
     print()
     if save_traj:
         traj.save(outtrajfilename)
-    return get_cmap(P_total.dot(coords)), P_total
+    return get_cmap(P_best.dot(coords)), P_best
 
 
 if __name__ == '__main__':
