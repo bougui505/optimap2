@@ -111,6 +111,12 @@ def permute_coords(coords, P, same=True):
         return coords_P
 
 
+def get_prob_swap(v):
+    # expv = numpy.exp(v)
+    # return expv / expv.sum()
+    return v / v.sum()
+
+
 class Permiter(object):
     def __init__(self, X, B):
         """
@@ -127,8 +133,13 @@ class Permiter(object):
         self.n = self.X.shape[0]
         self.p = self.B.shape[0]
         self.P = permoptim(self.A, self.B)
+        print(f"X: {self.X.shape}")
+        print(f"A: {self.A.shape}")
+        print(f"B: {self.B.shape}")
+        print(f"P: {self.P.shape}")
 
-    def iterate(self, n_step=10000, save_traj=False, topology=None, outtrajfilename='permiter.dcd'):
+    def iterate(self, n_step=10000, restart=1, stop=10,
+                save_traj=False, topology=None, outtrajfilename='permiter.dcd'):
         X_P, P = permute_coords(self.X, self.P)
         P_total = P.copy()
         A_optim = get_cmap(X_P)
@@ -147,23 +158,24 @@ class Permiter(object):
                     traj.append(X_P)
                 A_optim = get_cmap(X_P)
                 mask = zero_mask(X_P)
-                score = ((A_optim[:self.p][:, :self.p] - self.B)**2)[~mask[:self.p]].sum()
+                score = self.get_score(A_optim, mask)
                 if score < score_min:
                     score_min = score
                     P_total_best = P_total
                     X_P_restart = X_P
                     P_restart = P
-                logfile.write(f'\nstep: {i}\nscore: {score:.3f}')
-                sys.stdout.write(f'{i+1}/{n_step} {score:.3f}/{score_min:.3f}              \r')
-                sys.stdout.flush()
                 scores.append(score)
                 # if (scores[-1] == numpy.asarray(scores)).sum() > 3:
-                if (numpy.isclose(scores[-1], scores, atol=1e-3, rtol=0)).sum() > 3:
+                stopcount = (numpy.isclose(scores[-1], scores[:-1], atol=1e-3, rtol=0)).sum()
+                logfile.write(f'\nstep: {i}\nscore: {score:.3f}\nstopcount: {stopcount}')
+                sys.stdout.write(f'{i+1}/{n_step} {score:.3f}/{score_min:.3f} stopcount: {stopcount}/{stop}             \r')
+                sys.stdout.flush()
+                if stopcount >= restart:
                     print()
                     score_steps.append(scores[-1])
-                    _, counts = numpy.unique(score_steps, return_counts=True)
-                    count = max(counts)
-                    if count > 3:
+                    # _, counts = numpy.unique(score_steps, return_counts=True)
+                    # count = max(counts)
+                    if stopcount > stop or score == 0.:
                         print("Early stop")
                         break
                     else:
@@ -173,30 +185,41 @@ class Permiter(object):
                         P = P_restart
                         P_total = P_total_best
                         A_optim = get_cmap(X_P)
-                        P = shuffle_P(P)
+                        mask = zero_mask(X_P)
+                        p_swap = get_prob_swap(self.get_score(A_optim, mask, per_col=True))
+                        P = self.shuffle_P(P, p_swap)
                 logfile.write('\n')
         print()
         if save_traj:
             traj.save(outtrajfilename)
         return get_cmap(P_total_best.dot(self.X)), P_total_best
 
+    def get_score(self, A, mask, per_col=False):
+        score = ((A[:self.p][:, :self.p] - self.B)**2)[~mask[:self.p]].sum(axis=0)
+        if per_col:
+            return score
+        else:
+            return score.sum()
 
-def shuffle_P(P, level=.1):
-    """
-    Shuffle level*nrows lines of P
-    """
-    return P + numpy.random.uniform(size=P.shape)
-    # p, n = P.shape
-    # sel = numpy.random.choice(p, replace=False, size=int(p * level))
-    # P_sub = P[sel]
-    # numpy.random.shuffle(P_sub)
-    # P[sel] = P_sub
-    # return P
+    def shuffle_P(self, P, p_swap):
+        """
+        Shuffle rows of P
+        """
+        # return P + numpy.random.uniform(size=P.shape)
+        p, n = P.shape
+        if p > self.p:  # P was extended by permute_coords
+            p_swap = numpy.block([p_swap, numpy.asarray([p_swap.max(), ] * (p - self.p))])
+            p_swap /= p_swap.sum()
+        sel = numpy.random.choice(p, size=p, p=p_swap)
+        sel = numpy.unique(sel)
+        P_sub = P[sel]
+        numpy.random.shuffle(P_sub)
+        P[sel] = P_sub
+        return P
 
 
 if __name__ == '__main__':
     import argparse
-    import doctest
     import matplotlib.pyplot as plt
     # argparse.ArgumentParser(prog=None, usage=None, description=None, epilog=None, parents=[], formatter_class=argparse.HelpFormatter, prefix_chars='-', fromfile_prefix_chars=None, argument_default=None, conflict_handler='error', add_help=True, allow_abbrev=True, exit_on_error=True)
     parser = argparse.ArgumentParser(description='')
@@ -233,10 +256,6 @@ if __name__ == '__main__':
         B = block_diag(*cmaps)
     P = permoptim(A, B)
     # p, n = P.shape
-    print(f"X: {coords1.shape}")
-    print(f"A: {A.shape}")
-    print(f"B: {B.shape}")
-    print(f"P: {P.shape}")
     plt.matshow(A)
     plt.savefig('cmap_shuf.png')
     plt.clf()
