@@ -134,6 +134,7 @@ class Permiter(object):
             traj = Traj.Traj(topology)
         score_min = numpy.inf
         with open('permiter.log', 'w') as logfile:
+            logfile.write(f"niter: {n_step}\n\n")
             for i in range(n_step):
                 P = permoptim(A_optim[:n, :n], self.B, P[:p, :n])
                 X_P, P = permute_coords(X_P[:n, :], P)
@@ -148,7 +149,7 @@ class Permiter(object):
                     P_total_best = P_total
                     X_P_restart = X_P
                     P_restart = P
-                logfile.write(f'{i+1}/{n_step} {score}\n')
+                logfile.write(f'step: {i}\nscore: {score:.3f}\n\n')
                 sys.stdout.write(f'{i+1}/{n_step} {score:.3f}/{score_min:.3f}              \r')
                 sys.stdout.flush()
                 scores.append(score)
@@ -171,8 +172,6 @@ class Permiter(object):
                         score = ((A_optim[:p][:, :p] - self.B)**2)[~mask[:p]].sum()
                         print(f"Restart score: {score:.3f}")
                         P = shuffle_P(P)
-                        # noise = numpy.random.uniform(size=P.shape)
-                        # P += noise
         print()
         if save_traj:
             traj.save(outtrajfilename)
