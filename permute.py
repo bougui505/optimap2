@@ -149,7 +149,7 @@ class Permiter(object):
                     P_total_best = P_total
                     X_P_restart = X_P
                     P_restart = P
-                logfile.write(f'step: {i}\nscore: {score:.3f}\n\n')
+                logfile.write(f'\nstep: {i}\nscore: {score:.3f}')
                 sys.stdout.write(f'{i+1}/{n_step} {score:.3f}/{score_min:.3f}              \r')
                 sys.stdout.flush()
                 scores.append(score)
@@ -163,6 +163,7 @@ class Permiter(object):
                         print("Early stop")
                         break
                     else:
+                        logfile.write(f'\nrestart: 1')
                         print("Adding noise to escape local minima")
                         X_P = X_P_restart
                         P = P_restart
@@ -172,6 +173,7 @@ class Permiter(object):
                         score = ((A_optim[:p][:, :p] - self.B)**2)[~mask[:p]].sum()
                         print(f"Restart score: {score:.3f}")
                         P = shuffle_P(P)
+                logfile.write('\n')
         print()
         if save_traj:
             traj.save(outtrajfilename)
