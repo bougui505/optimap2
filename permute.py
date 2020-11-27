@@ -117,15 +117,19 @@ class Permiter(object):
         X: coordinates
         B: target contact map
         """
+        n = X.shape[0]
+        p = B.shape[0]
+        if n < p:
+            X = add_coords(X, p - n)
         self.X = X
         self.B = B
+        self.A = get_cmap(self.X)
+        self.n = self.X.shape[0]
+        self.p = self.B.shape[0]
+        self.P = permoptim(self.A, self.B)
 
     def iterate(self, n_step=10000, save_traj=False, topology=None, outtrajfilename='permiter.dcd'):
-        A = get_cmap(self.X)
-        n = self.X.shape[0]
-        p = self.B.shape[0]
-        P = permoptim(A, self.B)
-        X_P, P = permute_coords(self.X, P)
+        X_P, P = permute_coords(self.X, self.P)
         P_total = P.copy()
         A_optim = get_cmap(X_P)
         scores = []
@@ -136,14 +140,14 @@ class Permiter(object):
         with open('permiter.log', 'w') as logfile:
             logfile.write(f"niter: {n_step}\n\n")
             for i in range(n_step):
-                P = permoptim(A_optim[:n, :n], self.B, P[:p, :n])
-                X_P, P = permute_coords(X_P[:n, :], P)
+                P = permoptim(A_optim[:self.n, :self.n], self.B, P[:self.p, :self.n])
+                X_P, P = permute_coords(X_P[:self.n, :], P)
                 P_total = P.dot(P_total)
                 if save_traj:
                     traj.append(X_P)
                 A_optim = get_cmap(X_P)
                 mask = zero_mask(X_P)
-                score = ((A_optim[:p][:, :p] - self.B)**2)[~mask[:p]].sum()
+                score = ((A_optim[:self.p][:, :self.p] - self.B)**2)[~mask[:self.p]].sum()
                 if score < score_min:
                     score_min = score
                     P_total_best = P_total
@@ -169,9 +173,6 @@ class Permiter(object):
                         P = P_restart
                         P_total = P_total_best
                         A_optim = get_cmap(X_P)
-                        mask = zero_mask(X_P)
-                        score = ((A_optim[:p][:, :p] - self.B)**2)[~mask[:p]].sum()
-                        print(f"Restart score: {score:.3f}")
                         P = shuffle_P(P)
                 logfile.write('\n')
         print()
@@ -191,8 +192,6 @@ def shuffle_P(P, level=.1):
     # numpy.random.shuffle(P_sub)
     # P[sel] = P_sub
     # return P
-
-
 
 
 if __name__ == '__main__':
@@ -233,13 +232,11 @@ if __name__ == '__main__':
             cmaps.append(numpy.load(cmap))
         B = block_diag(*cmaps)
     P = permoptim(A, B)
-    p, n = P.shape
+    # p, n = P.shape
     print(f"X: {coords1.shape}")
     print(f"A: {A.shape}")
     print(f"B: {B.shape}")
     print(f"P: {P.shape}")
-    if n < p:
-        coords1 = add_coords(coords1, p - n)
     plt.matshow(A)
     plt.savefig('cmap_shuf.png')
     plt.clf()
@@ -254,7 +251,7 @@ if __name__ == '__main__':
     A_optim, P = permiter.iterate(n_step=args.niter,
                                   save_traj=save_traj, topology=args.pdb1,
                                   outtrajfilename=args.save_traj)
-    coords_out = permute_coords(coords1, P, same=False)
+    coords_out = permute_coords(permiter.X, P, same=False)
     mask = zero_mask(coords_out)
     A_optim = get_cmap(coords_out)
     A_optim[mask, :] = 0.
