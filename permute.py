@@ -168,7 +168,7 @@ class Permiter(object):
                 # if (scores[-1] == numpy.asarray(scores)).sum() > 3:
                 stopcount = (numpy.isclose(scores[-1], scores[:-1], atol=1e-3, rtol=0)).sum()
                 logfile.write(f'\nstep: {i}\nscore: {score:.3f}\nstopcount: {stopcount}')
-                sys.stdout.write(f'{i+1}/{n_step} {score:.3f}/{score_min:.3f} stopcount: {stopcount}/{stop}             \r')
+                sys.stdout.write(f'{i+1}/{n_step} {score:10.3f}/{score_min:10.3f} stopcount: {stopcount}/{stop}             \r')
                 sys.stdout.flush()
                 if stopcount >= restart:
                     print()
