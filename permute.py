@@ -111,54 +111,87 @@ def permute_coords(coords, P, same=True):
         return coords_P
 
 
-def permiter(coords, cmap_ref, n_step=10000, save_traj=False, topology=None, outtrajfilename='permiter.dcd'):
-    A = get_cmap(coords)
-    B = cmap_ref
-    n = coords.shape[0]
-    p = B.shape[0]
-    P = permoptim(A, B)
-    coords_P, P = permute_coords(coords, P)
-    P_total = P.copy()
-    A_optim = get_cmap(coords_P)
-    scores = []
-    score_steps = []
-    if save_traj:
-        traj = Traj.Traj(topology)
-    score_min = numpy.inf
-    with open('permiter.log', 'w') as logfile:
-        for i in range(n_step):
-            P = permoptim(A_optim[:n, :n], B, P[:p, :n])
-            coords_P, P = permute_coords(coords_P[:n, :], P)
-            P_total = P.dot(P_total)
-            if save_traj:
-                traj.append(coords_P)
-            A_optim = get_cmap(coords_P)
-            mask = zero_mask(coords_P)
-            score = ((A_optim[:p][:, :p] - B)**2)[~mask[:p]].sum()
-            if score < score_min:
-                score_min = score
-                P_best = P_total
-            logfile.write(f'{i+1}/{n_step} {score}\n')
-            sys.stdout.write(f'{i+1}/{n_step} {score:.3f}/{score_min:.3f}              \r')
-            sys.stdout.flush()
-            scores.append(score)
-            # if (scores[-1] == numpy.asarray(scores)).sum() > 3:
-            if (numpy.isclose(scores[-1], scores, atol=1e-3, rtol=0)).sum() > 3:
-                print()
-                score_steps.append(scores[-1])
-                _, counts = numpy.unique(score_steps, return_counts=True)
-                count = max(counts)
-                if count > 3:
-                    print("Early stop")
-                    break
-                else:
-                    print("Adding noise to escape local minima")
-                    noise = numpy.random.uniform(size=P.shape)
-                    P += noise
-    print()
-    if save_traj:
-        traj.save(outtrajfilename)
-    return get_cmap(P_best.dot(coords)), P_best
+class Permiter(object):
+    def __init__(self, X, B):
+        """
+        X: coordinates
+        B: target contact map
+        """
+        self.X = X
+        self.B = B
+
+    def iterate(self, n_step=10000, save_traj=False, topology=None, outtrajfilename='permiter.dcd'):
+        A = get_cmap(self.X)
+        n = self.X.shape[0]
+        p = self.B.shape[0]
+        P = permoptim(A, self.B)
+        X_P, P = permute_coords(self.X, P)
+        P_total = P.copy()
+        A_optim = get_cmap(X_P)
+        scores = []
+        score_steps = []
+        if save_traj:
+            traj = Traj.Traj(topology)
+        score_min = numpy.inf
+        with open('permiter.log', 'w') as logfile:
+            for i in range(n_step):
+                P = permoptim(A_optim[:n, :n], self.B, P[:p, :n])
+                X_P, P = permute_coords(X_P[:n, :], P)
+                P_total = P.dot(P_total)
+                if save_traj:
+                    traj.append(X_P)
+                A_optim = get_cmap(X_P)
+                mask = zero_mask(X_P)
+                score = ((A_optim[:p][:, :p] - self.B)**2)[~mask[:p]].sum()
+                if score < score_min:
+                    score_min = score
+                    P_total_best = P_total
+                    X_P_restart = X_P
+                    P_restart = P
+                logfile.write(f'{i+1}/{n_step} {score}\n')
+                sys.stdout.write(f'{i+1}/{n_step} {score:.3f}/{score_min:.3f}              \r')
+                sys.stdout.flush()
+                scores.append(score)
+                # if (scores[-1] == numpy.asarray(scores)).sum() > 3:
+                if (numpy.isclose(scores[-1], scores, atol=1e-3, rtol=0)).sum() > 3:
+                    print()
+                    score_steps.append(scores[-1])
+                    _, counts = numpy.unique(score_steps, return_counts=True)
+                    count = max(counts)
+                    if count > 3:
+                        print("Early stop")
+                        break
+                    else:
+                        print("Adding noise to escape local minima")
+                        X_P = X_P_restart
+                        P = P_restart
+                        P_total = P_total_best
+                        A_optim = get_cmap(X_P)
+                        mask = zero_mask(X_P)
+                        score = ((A_optim[:p][:, :p] - self.B)**2)[~mask[:p]].sum()
+                        print(f"Restart score: {score:.3f}")
+                        P = shuffle_P(P)
+                        # noise = numpy.random.uniform(size=P.shape)
+                        # P += noise
+        print()
+        if save_traj:
+            traj.save(outtrajfilename)
+        return get_cmap(P_total_best.dot(self.X)), P_total_best
+
+
+def shuffle_P(P, level=.1):
+    """
+    Shuffle level*nrows lines of P
+    """
+    return P + numpy.random.uniform(size=P.shape)
+    # p, n = P.shape
+    # sel = numpy.random.choice(p, replace=False, size=int(p * level))
+    # P_sub = P[sel]
+    # numpy.random.shuffle(P_sub)
+    # P[sel] = P_sub
+    # return P
+
+
 
 
 if __name__ == '__main__':
@@ -216,9 +249,10 @@ if __name__ == '__main__':
         save_traj = True
     else:
         save_traj = False
-    A_optim, P = permiter(coords1, B, n_step=args.niter,
-                          save_traj=save_traj, topology=args.pdb1,
-                          outtrajfilename=args.save_traj)
+    permiter = Permiter(coords1, B)
+    A_optim, P = permiter.iterate(n_step=args.niter,
+                                  save_traj=save_traj, topology=args.pdb1,
+                                  outtrajfilename=args.save_traj)
     coords_out = permute_coords(coords1, P, same=False)
     mask = zero_mask(coords_out)
     A_optim = get_cmap(coords_out)
