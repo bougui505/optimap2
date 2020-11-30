@@ -138,7 +138,7 @@ class Permiter(object):
         print(f"B: {self.B.shape}")
         print(f"P: {self.P.shape}")
 
-    def iterate(self, n_step=10000, restart=1, stop=10,
+    def iterate(self, n_step=10000, restart=3, stop=10,
                 save_traj=False, topology=None, outtrajfilename='permiter.dcd'):
         X_P, P = permute_coords(self.X, self.P)
         P_total = P.copy()
