@@ -159,6 +159,7 @@ class Permiter(object):
         score_steps = []
         if save_traj:
             traj = Traj.Traj(topology)
+        tsp_count = 0
         score_min = numpy.inf
         with open('permiter.log', 'w') as logfile:
             logfile.write(f"niter: {n_step}\n\n")
@@ -180,10 +181,7 @@ class Permiter(object):
                 # if (scores[-1] == numpy.asarray(scores)).sum() > 3:
                 stopcount = (numpy.isclose(scores[-1], scores[:-1], atol=1e-3, rtol=0)).sum()
                 logfile.write(f'\nstep: {i}\nscore: {score:.3f}\nstopcount: {stopcount}')
-                sys.stdout.write(f'{i+1}/{n_step} {score:10.3f}/{score_min:10.3f} stopcount: {stopcount}/{stop}             \r')
-                sys.stdout.flush()
                 if stopcount >= restart:
-                    print()
                     score_steps.append(scores[-1])
                     # _, counts = numpy.unique(score_steps, return_counts=True)
                     # count = max(counts)
@@ -191,15 +189,18 @@ class Permiter(object):
                         print("Early stop")
                         break
                     else:
-                        logfile.write(f'\nrestart: 1')
-                        print("Fixing topology (TSP)")
+                        logfile.write(f'\nTSP: 1')
                         # X_P = X_P_restart
                         # P = P_restart
                         # P_total = P_total_best
                         # A_optim = get_cmap(X_P)
                         P = topofix(X_P, mask=mask)
+                        tsp_count += 1
                         # P = self.shuffle_P(P)
                 logfile.write('\n')
+                sys.stdout.write(f'{i+1}/{n_step} {score:10.3f}/{score_min:10.3f} n_tsp: {tsp_count}')
+                sys.stdout.write('             \r')
+                sys.stdout.flush()
         print()
         if save_traj:
             traj.save(outtrajfilename)
