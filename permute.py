@@ -185,9 +185,7 @@ class Permiter(object):
                         P = P_restart
                         P_total = P_total_best
                         A_optim = get_cmap(X_P)
-                        mask = zero_mask(X_P)
-                        p_swap = get_prob_swap(self.get_score(A_optim, mask, per_col=True))
-                        P = self.shuffle_P(P, p_swap)
+                        P = self.shuffle_P(P)
                 logfile.write('\n')
         print()
         if save_traj:
@@ -201,21 +199,11 @@ class Permiter(object):
         else:
             return score.sum()
 
-    def shuffle_P(self, P, p_swap):
+    def shuffle_P(self, P):
         """
         Shuffle rows of P
         """
-        # return P + numpy.random.uniform(size=P.shape)
-        p, n = P.shape
-        if p > self.p:  # P was extended by permute_coords
-            p_swap = numpy.block([p_swap, numpy.asarray([p_swap.max(), ] * (p - self.p))])
-            p_swap /= p_swap.sum()
-        sel = numpy.random.choice(p, size=p, p=p_swap)
-        sel = numpy.unique(sel)
-        P_sub = P[sel]
-        numpy.random.shuffle(P_sub)
-        P[sel] = P_sub
-        return P
+        return P + numpy.random.uniform(size=P.shape)
 
 
 if __name__ == '__main__':
