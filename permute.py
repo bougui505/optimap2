@@ -209,6 +209,7 @@ class Permiter(object):
         self.mask = zero_mask(self.X_P)
         self.A_P = get_cmap(self.X_P)
         self.A_P[self.mask, :] = 0.
+        self.A_P = self.A_P[:self.p, :self.p]
         self.X_P = self.X_P[~self.mask]
         return self.A_P, self.P
 
