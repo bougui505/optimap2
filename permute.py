@@ -203,7 +203,14 @@ class Permiter(object):
         print()
         if save_traj:
             traj.save(outtrajfilename)
-        return get_cmap(P_total_best.dot(self.X)), P_total_best
+        # Store results in class
+        self.P = P_total_best
+        self.X_P = self.P.dot(self.X)
+        self.mask = zero_mask(self.X_P)
+        self.A_P = get_cmap(self.X_P)
+        self.A_P[self.mask, :] = 0.
+        self.X_P = self.X_P[~self.mask]
+        return self.A_P, self.P
 
     def get_score(self, A, mask, per_col=False):
         score = ((A[:self.p][:, :self.p] - self.B)**2)[~mask[:self.p]].sum(axis=0)
@@ -271,13 +278,9 @@ if __name__ == '__main__':
     A_optim, P = permiter.iterate(n_step=args.niter,
                                   save_traj=save_traj, topology=args.pdb1,
                                   outtrajfilename=args.save_traj)
-    coords_out = permute_coords(permiter.X, P, same=False)
-    mask = zero_mask(coords_out)
-    A_optim = get_cmap(coords_out)
-    A_optim[mask, :] = 0.
-    plt.matshow(A_optim)
+    plt.matshow(permiter.A_P)
     plt.savefig('cmap_optim.png')
     plt.clf()
-    coords_out = coords_out[~mask]
+    coords_out = permiter.X_P
     cmd.load_coords(coords_out, 'shuf')
     cmd.save('coords_optim.pdb', 'shuf')
