@@ -13,6 +13,7 @@ import scipy.spatial.distance as distance
 from scipy.linalg import block_diag
 from pymol import cmd
 import Traj
+from tsp_solver.greedy import solve_tsp
 
 
 def sigmoid(x):
@@ -49,6 +50,22 @@ def get_cmap(coords, threshold=8., ca_switch=True, dist_ca=3.8, sigma_ca=0.1):
     return cmap
 
 
+def topofix(coords, dist_ca=3.8, sigma_ca=0.1, mask=None):
+    def get_topo(coords):
+        pdist = distance.squareform(distance.pdist(coords))
+        topo = numpy.exp(-(pdist - dist_ca)**2 / (2 * sigma_ca**2))
+        return topo
+    n = coords.shape[0]
+    topo = get_topo(coords)
+    if mask is not None:
+        topo[mask] = 0.5
+    col_ind = solve_tsp(1. - topo, endpoints=(0, n - 1))
+    row_ind = numpy.arange(n)
+    P = numpy.zeros((n, n))
+    P[row_ind, col_ind] = 1.
+    return P
+
+
 def permoptim(A, B, P=None):
     """
     Find a permutation P that minimizes the sum of square errors ||AP-B||^2
@@ -67,12 +84,7 @@ def permoptim(A, B, P=None):
     costmat = cmax - C
     row_ind, col_ind = optimize.linear_sum_assignment(costmat)
     P = numpy.zeros((p, n))
-    assignment = -numpy.ones(max(n, p), dtype=int)
-    assignment[col_ind] = row_ind
-    assignment = assignment[assignment > -1]
-    P[numpy.arange(len(assignment)), assignment] = 1.
-    # P = P.T
-    # P = P[P.sum(axis=0) != 0]
+    P[col_ind, row_ind] = 1.
     return P
 
 
@@ -180,12 +192,13 @@ class Permiter(object):
                         break
                     else:
                         logfile.write(f'\nrestart: 1')
-                        print("Adding noise to escape local minima")
-                        X_P = X_P_restart
-                        P = P_restart
-                        P_total = P_total_best
-                        A_optim = get_cmap(X_P)
-                        P = self.shuffle_P(P)
+                        print("Fixing topology (TSP)")
+                        # X_P = X_P_restart
+                        # P = P_restart
+                        # P_total = P_total_best
+                        # A_optim = get_cmap(X_P)
+                        P = topofix(X_P, mask=mask)
+                        # P = self.shuffle_P(P)
                 logfile.write('\n')
         print()
         if save_traj:
