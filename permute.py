@@ -104,10 +104,11 @@ def zero_mask(coords):
     return mask
 
 
-def permute_coords(coords, P, same=True):
+def permute_coords(coords, P, same=True, random=False):
     """
     Permute the coordinates using P
     If same is True, return a coordinates array with the same shape as the input coords
+    - random: if True, randomize the permutations
     """
     p, n = P.shape
     if p < n and same:  # Works
@@ -116,6 +117,11 @@ def permute_coords(coords, P, same=True):
         P1 = numpy.zeros((n - p, n))
         P1[range(n - p), inds] = 1
         P = numpy.block([[P], [P1]])
+    if random:
+        p, n = P.shape
+        P = numpy.zeros((p, n))
+        inds = numpy.random.choice(n, size=p, replace=False)
+        P[numpy.arange(p), inds] = 1.
     coords_P = P.dot(coords)
     if same:
         return coords_P, P
@@ -152,7 +158,7 @@ class Permiter(object):
 
     def iterate(self, n_step=10000, restart=3, stop=10,
                 save_traj=False, topology=None, outtrajfilename='permiter.dcd'):
-        X_P, P = permute_coords(self.X, self.P)
+        X_P, P = permute_coords(self.X, self.P, random=True)
         P_total = P.copy()
         A_optim = get_cmap(X_P)
         scores = []
