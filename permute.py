@@ -192,6 +192,7 @@ class Permiter(object):
                     # _, counts = numpy.unique(score_steps, return_counts=True)
                     # count = max(counts)
                     if stopcount > stop or score == 0.:
+                        print()
                         print("Early stop")
                         break
                     else:
