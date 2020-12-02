@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 parser = argparse.ArgumentParser(description='Convert a Casp contact map to a npy file. See: https://predictioncenter.org/casp14/index.cgi?page=format#RR for the input file format')
 parser.add_argument('--cmap', type=str, help='CASP contact map file', required=True)
 parser.add_argument('--norm', help='normalize the probabilities to 1.', action='store_true')
+parser.add_argument('--threshold', help='score threshold for the contact scores', type=float)
 parser.add_argument('--sel', type=str, help='Residue selection for the contact map (e.g.: 10-24+30-65+70-94)')
 parser.add_argument('--ss', type=str, help='Secondary structure prediction file to fill 4-first diagonal (optional). The format is e.g.: 3 I H   0.985 0.000 0.014, with the resid, resname, SS-type, H-propensity, E-propensity and C-propensity as in DSSP')
 args = parser.parse_args()
@@ -94,6 +95,9 @@ for r in sel:
         if ind + 1 < n:
             cmap[ind, ind + 1] = 0.
             cmap[ind + 1, ind] = 0.
+
+if args.threshold is not None:
+    cmap = numpy.float_(cmap > args.threshold)
 
 print(f'Contact map shape: {cmap.shape}')
 outbasename = os.path.split(os.path.splitext(args.cmap)[0])[1]
