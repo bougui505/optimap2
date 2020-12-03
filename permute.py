@@ -104,7 +104,7 @@ def zero_mask(coords):
     return mask
 
 
-def permute_coords(coords, P, same=True, random=False):
+def permute_coords(coords, P, same=True, random=False, noise=1.):
     """
     Permute the coordinates using P
     If same is True, return a coordinates array with the same shape as the input coords
@@ -119,9 +119,16 @@ def permute_coords(coords, P, same=True, random=False):
         P = numpy.block([[P], [P1]])
     if random:
         p, n = P.shape
-        P = numpy.zeros((p, n))
-        inds = numpy.random.choice(n, size=p, replace=False)
-        P[numpy.arange(p), inds] = 1.
+        A = numpy.identity(p)
+        inds1 = numpy.random.choice(p, size=int(p * noise), replace=False)
+        inds2 = numpy.random.choice(inds1, size=int(p * noise), replace=False)
+        A[inds1, inds1] = 0.
+        A[inds1, inds2] = 1.
+        assert (A.sum(axis=0) == 1.).all()
+        assert (A.sum(axis=1) == 1.).all()
+        P = A.dot(P)
+    assert (P.sum(axis=0) == 1.).all()
+    assert (P.sum(axis=1) == 1.).all()
     coords_P = P.dot(coords)
     if same:
         return coords_P, P
@@ -156,7 +163,7 @@ class Permiter(object):
         print(f"B: {self.B.shape}")
         print(f"P: {self.P.shape}")
 
-    def iterate(self, n_step=10000, restart=3, stop=10,
+    def iterate(self, n_epoch=10, n_iter=1000,
                 save_traj=False, topology=None, outtrajfilename='permiter.dcd'):
         X_P, P = permute_coords(self.X, self.P, random=True)
         P_total = P.copy()
@@ -165,47 +172,51 @@ class Permiter(object):
         score_steps = []
         if save_traj:
             traj = Traj.Traj(topology)
-        tsp_count = 0
-        score_min = numpy.inf
+        global_min = numpy.inf
+        local_min = numpy.inf
         with open('permiter.log', 'w') as logfile:
-            logfile.write(f"niter: {n_step}\n\n")
-            for i in range(n_step):
+            logfile.write(f"n_epoch: {n_epoch}\n")
+            logfile.write(f"n_iter: {n_iter}\n\n")
+            miniter = 0
+            epoch = 0
+            while epoch < n_epoch:
+                miniter += 1
                 P = permoptim(A_optim[:self.n, :self.n], self.B, P[:self.p, :self.n])
                 X_P, P = permute_coords(X_P[:self.n, :], P)
                 P_total = P.dot(P_total)
+                A_optim = get_cmap(X_P)
                 if save_traj:
                     traj.append(X_P)
-                A_optim = get_cmap(X_P)
                 mask = zero_mask(X_P)
                 score = self.get_score(A_optim, mask)
-                if score < score_min:
-                    score_min = score
-                    P_total_best = P_total
-                    X_P_restart = X_P
-                    P_restart = P
+                if score < local_min:
+                    miniter = 0
+                    if score < global_min:
+                        global_min = score
+                        P_total_best = P_total
+                    local_min = score
+                    # P = topofix(X_P, mask=mask)
+                    # X_P_restart = X_P
+                    # P_restart = P
                 scores.append(score)
-                # if (scores[-1] == numpy.asarray(scores)).sum() > 3:
-                stopcount = (numpy.isclose(scores[-1], scores[:-1], atol=1e-3, rtol=0)).sum()
-                logfile.write(f'\nstep: {i}\nscore: {score:.3f}\nstopcount: {stopcount}')
-                if stopcount >= restart:
+                logfile.write(f'\nn_epoch: {n_epoch}\nn_iter: {n_iter}\nscore: {score:.3f}')
+                if miniter > n_iter:
+                    epoch += 1
                     score_steps.append(scores[-1])
                     # _, counts = numpy.unique(score_steps, return_counts=True)
                     # count = max(counts)
-                    if stopcount > stop or score == 0.:
+                    if score == 0.:
                         print()
                         print("Early stop")
                         break
                     else:
-                        logfile.write(f'\nTSP: 1')
-                        # X_P = X_P_restart
-                        # P = P_restart
-                        # P_total = P_total_best
-                        # A_optim = get_cmap(X_P)
-                        P = topofix(X_P, mask=mask)
-                        tsp_count += 1
-                        # P = self.shuffle_P(P)
+                        logfile.write(f'\nrestart: 1')
+                        local_min = numpy.inf
+                        X_P, P = permute_coords(X_P, P, random=True, noise=0.5)
+                        P_total = P.dot(P_total)
+                        A_optim = get_cmap(X_P)
                 logfile.write('\n')
-                sys.stdout.write(f'{i+1}/{n_step} {score:10.3f}/{score_min:10.3f} n_tsp: {tsp_count}')
+                sys.stdout.write(f'{epoch}/{n_epoch} {miniter}/{n_iter} {score:10.3f}/{global_min:10.3f} local_min: {local_min:10.3f}')
                 sys.stdout.write('             \r')
                 sys.stdout.flush()
         print()
@@ -245,7 +256,8 @@ if __name__ == '__main__':
     parser.add_argument('--pdb1', help='pdb filename of coordinates to permute', type=str)
     parser.add_argument('--pdb2', help='pdb filename of reference coordinates', type=str)
     parser.add_argument('--cmap', help='npy file of the target -- reference -- contact map. Multiple files can be given. In that case, the matrices will be concatenated as a block diagonal matrix', nargs='+', type=str)
-    parser.add_argument('--niter', help='Number of iterations', type=int)
+    parser.add_argument('--n_epoch', help='Number of epochs', type=int)
+    parser.add_argument('--n_iter', help='Minimizer iterations', type=int)
     parser.add_argument('--get_cmap', help='Compute the contact map from the given pdb and exit', type=str)
     parser.add_argument('--save_traj', help='Filename of an output dcd file to save optimization trajectory (optional)', type=str)
     args = parser.parse_args()
@@ -284,7 +296,8 @@ if __name__ == '__main__':
     else:
         save_traj = False
     permiter = Permiter(coords1, B)
-    A_optim, P = permiter.iterate(n_step=args.niter,
+    A_optim, P = permiter.iterate(n_epoch=args.n_epoch,
+                                  n_iter=args.n_iter,
                                   save_traj=save_traj, topology=args.pdb1,
                                   outtrajfilename=args.save_traj)
     plt.matshow(permiter.A_P)
