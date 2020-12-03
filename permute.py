@@ -199,7 +199,7 @@ class Permiter(object):
                     # X_P_restart = X_P
                     # P_restart = P
                 scores.append(score)
-                logfile.write(f'\nn_epoch: {n_epoch}\nn_iter: {n_iter}\nscore: {score:.3f}')
+                logfile.write(f'\nepoch: {epoch}\nminiter: {miniter}\nscore: {score:.3f}')
                 if miniter > n_iter:
                     epoch += 1
                     score_steps.append(scores[-1])
@@ -210,7 +210,6 @@ class Permiter(object):
                         print("Early stop")
                         break
                     else:
-                        logfile.write(f'\nrestart: 1')
                         local_min = numpy.inf
                         X_P, P = permute_coords(X_P, P, random=True, noise=0.5)
                         P_total = P.dot(P_total)
