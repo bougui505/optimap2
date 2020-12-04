@@ -31,7 +31,7 @@ def get_coords(pdbfilename, object, selection=None):
     return coords
 
 
-def get_cmap(coords, threshold=8., ca_switch=True, dist_ca=3.8, sigma_ca=0.1):
+def get_cmap(coords, threshold=8., ca_switch=False, dist_ca=3.8, sigma_ca=0.1):
     """
     - ca_switch: if True, apply a different distance threshold for consecutive CA
     - dist_ca: C-alpha - C-alpha distance
@@ -195,7 +195,7 @@ class Permiter(object):
                         global_min = score
                         P_total_best = P_total
                     local_min = score
-                    # P = topofix(X_P, mask=mask)
+                    P = topofix(X_P, mask=mask)
                     # X_P_restart = X_P
                     # P_restart = P
                 scores.append(score)
@@ -211,11 +211,11 @@ class Permiter(object):
                         break
                     else:
                         local_min = numpy.inf
-                        X_P, P = permute_coords(X_P, P, random=True, noise=0.5)
+                        X_P, P = permute_coords(X_P, P, random=True, noise=0.1)
                         P_total = P.dot(P_total)
                         A_optim = get_cmap(X_P)
                 logfile.write('\n')
-                sys.stdout.write(f'{epoch}/{n_epoch} {miniter}/{n_iter} {score:10.3f}/{global_min:10.3f} local_min: {local_min:10.3f}')
+                sys.stdout.write(f'{epoch:4d}/{n_epoch:4d} {miniter:4d}/{n_iter:4d} {score:10.3f}/{global_min:10.3f} local_min: {local_min:10.3f}')
                 sys.stdout.write('             \r')
                 sys.stdout.flush()
         print()
