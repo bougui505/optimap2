@@ -200,7 +200,7 @@ class Permiter(object):
                 scores.append(score)
                 logfile.write(f'\nepoch: {epoch}\nminiter: {miniter}\nscore: {score:.3f}')
                 if miniter > n_iter:
-                    P = topofix(X_P, mask=mask)
+                    # P = topofix(X_P, mask=mask)
                     epoch += 1
                     score_steps.append(scores[-1])
                     # _, counts = numpy.unique(score_steps, return_counts=True)
@@ -211,9 +211,10 @@ class Permiter(object):
                         break
                     else:
                         local_min = numpy.inf
-                        X_P, P = permute_coords(X_P, P, random=False)
-                        P_total = P.dot(P_total)
-                        A_optim = get_cmap(X_P)
+                        P += numpy.random.uniform(low=0., high=1., size=P.shape)
+                        # X_P, P = permute_coords(X_P, P, random=True, noise=.75)
+                        # P_total = P.dot(P_total)
+                        # A_optim = get_cmap(X_P)
                 logfile.write('\n')
                 sys.stdout.write(f'{epoch:4d}/{n_epoch:4d} {miniter:4d}/{n_iter:4d} {score:10.3f}/{global_min:10.3f} local_min: {local_min:10.3f}')
                 sys.stdout.write('             \r')
@@ -284,17 +285,17 @@ if __name__ == '__main__':
         B = block_diag(*cmaps)
     P = permoptim(A, B)
     # p, n = P.shape
-    plt.matshow(A)
-    plt.savefig('cmap_shuf.png')
-    plt.clf()
-    plt.matshow(B)
-    plt.savefig('cmap_ref.png')
-    plt.clf()
     if args.save_traj is not None:
         save_traj = True
     else:
         save_traj = False
     permiter = Permiter(coords1, B)
+    plt.matshow(permiter.A)
+    plt.savefig('cmap_shuf.png')
+    plt.clf()
+    plt.matshow(permiter.B)
+    plt.savefig('cmap_ref.png')
+    plt.clf()
     A_optim, P = permiter.iterate(n_epoch=args.n_epoch,
                                   n_iter=args.n_iter,
                                   save_traj=save_traj, topology=args.pdb1,
