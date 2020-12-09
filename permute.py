@@ -104,6 +104,19 @@ def zero_mask(coords):
     return mask
 
 
+def shuffle_P(P, noise):
+    p, n = P.shape
+    A = numpy.identity(p)
+    inds1 = numpy.random.choice(p, size=int(p * noise), replace=False)
+    inds2 = numpy.random.choice(inds1, size=int(p * noise), replace=False)
+    A[inds1, inds1] = 0.
+    A[inds1, inds2] = 1.
+    assert (A.sum(axis=0) == 1.).all()
+    assert (A.sum(axis=1) == 1.).all()
+    P = A.dot(P)
+    return P
+
+
 def permute_coords(coords, P, same=True, random=False, noise=1.):
     """
     Permute the coordinates using P
@@ -118,15 +131,7 @@ def permute_coords(coords, P, same=True, random=False, noise=1.):
         P1[range(n - p), inds] = 1
         P = numpy.block([[P], [P1]])
     if random:
-        p, n = P.shape
-        A = numpy.identity(p)
-        inds1 = numpy.random.choice(p, size=int(p * noise), replace=False)
-        inds2 = numpy.random.choice(inds1, size=int(p * noise), replace=False)
-        A[inds1, inds1] = 0.
-        A[inds1, inds2] = 1.
-        assert (A.sum(axis=0) == 1.).all()
-        assert (A.sum(axis=1) == 1.).all()
-        P = A.dot(P)
+        P = shuffle_P(P, noise)
     assert (P.sum(axis=0) == 1.).all()
     assert (P.sum(axis=1) == 1.).all()
     coords_P = P.dot(coords)
@@ -163,7 +168,15 @@ class Permiter(object):
         print(f"B: {self.B.shape}")
         print(f"P: {self.P.shape}")
 
-    def iterate(self, n_epoch=10, n_iter=1000,
+    def get_beta(self, rate50=0.1):
+        """
+        - rate50: ration of the total number of contact with a acceptance rate of .5
+        """
+        delta50 = self.B.sum() * 0.1
+        beta = -numpy.log(0.5) / delta50
+        return beta
+
+    def iterate(self, n_epoch=10, n_iter=1000, alpha_target=0.234,
                 save_traj=False, topology=None, outtrajfilename='permiter.dcd'):
         X_P, P = permute_coords(self.X, self.P, random=True)
         P_total = P.copy()
@@ -179,6 +192,15 @@ class Permiter(object):
             logfile.write(f"n_iter: {n_iter}\n\n")
             miniter = 0
             epoch = 0
+            P0 = P.copy()
+            X_P0 = X_P.copy()
+            P_total0 = P_total.copy()
+            A_optim0 = A_optim.copy()
+            score0 = numpy.inf
+            beta = 1.  # self.get_beta()
+            alpha = 1.
+            alpha_mean = 0.
+            ds_mean = 0.
             while epoch < n_epoch:
                 miniter += 1
                 P = permoptim(A_optim[:self.n, :self.n], self.B, P[:self.p, :self.n])
@@ -189,6 +211,10 @@ class Permiter(object):
                     traj.append(X_P)
                 mask = zero_mask(X_P)
                 score = self.get_score(A_optim, mask)
+                if score == 0.:
+                    print()
+                    print("Early stop")
+                    break
                 if score < local_min:
                     miniter = 0
                     if score < global_min:
@@ -200,24 +226,34 @@ class Permiter(object):
                 scores.append(score)
                 logfile.write(f'\nepoch: {epoch}\nminiter: {miniter}\nscore: {score:.3f}')
                 if miniter > n_iter:
-                    # P = topofix(X_P, mask=mask)
                     epoch += 1
                     score_steps.append(scores[-1])
-                    # _, counts = numpy.unique(score_steps, return_counts=True)
-                    # count = max(counts)
-                    if score == 0.:
-                        print()
-                        print("Early stop")
-                        break
+                    local_min = numpy.inf
+                    ds = score - score0
+                    if not numpy.isinf(ds):
+                        ds_mean = ds_mean + (ds - ds_mean) / epoch
                     else:
-                        local_min = numpy.inf
-                        P += numpy.random.uniform(low=0., high=1., size=P.shape)
-                        # X_P, P = permute_coords(X_P, P, random=True, noise=.75)
-                        # P_total = P.dot(P_total)
-                        # A_optim = get_cmap(X_P)
+                        ds_mean = 0.
+                    if ds_mean > 0.:
+                        beta = -numpy.log(alpha_target) / ds_mean
+                    alpha = min(numpy.exp(-beta * ds), 1.)
+                    alpha_mean = alpha_mean + (alpha - alpha_mean) / epoch
+                    if numpy.random.uniform() > alpha:  # reject
+                        P = P0
+                        X_P = X_P0
+                        P_total = P_total0
+                        A_optim = A_optim0
+                        score = score0
+                    P0 = P.copy()
+                    X_P0 = X_P.copy()
+                    P_total0 = P_total.copy()
+                    A_optim0 = A_optim
+                    score0 = score
+                    P += numpy.random.uniform(low=0., high=1., size=P.shape)
+                    # P = shuffle_P(P, noise=1.)
+                    logfile.write(f'\nalpha: {alpha:.3f}\nbeta: {beta:.3f}')
                 logfile.write('\n')
-                sys.stdout.write(f'{epoch:4d}/{n_epoch:4d} {miniter:4d}/{n_iter:4d} {score:10.3f}/{global_min:10.3f} local_min: {local_min:10.3f}')
-                sys.stdout.write('             \r')
+                sys.stdout.write(f'{epoch:4d}/{n_epoch:4d} {miniter:4d}/{n_iter:4d} {score:6.1f}/{global_min:6.1f} local_min: {local_min:6.1f} α: {alpha:1.1f} α_mean: {alpha_mean:1.1f} β: {beta:1.1g}\r')
                 sys.stdout.flush()
         print()
         if save_traj:
@@ -238,12 +274,6 @@ class Permiter(object):
             return score
         else:
             return score.sum()
-
-    def shuffle_P(self, P):
-        """
-        Shuffle rows of P
-        """
-        return P + numpy.random.uniform(size=P.shape)
 
 
 if __name__ == '__main__':
