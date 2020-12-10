@@ -240,16 +240,16 @@ class Permiter(object):
                     alpha = min(numpy.exp(-beta * ds), 1.)
                     alpha_mean = alpha_mean + (alpha - alpha_mean) / epoch
                     if numpy.random.uniform() > alpha:  # reject
-                        P = P0
-                        X_P = X_P0
-                        P_total = P_total0
-                        A_optim = A_optim0
-                        score = score0
+                        P = P0.copy()
+                        X_P = X_P0.copy()
+                        P_total = P_total0.copy()
+                        A_optim = A_optim0.copy()
+                        score = score0.copy()
                     P0 = P.copy()
                     X_P0 = X_P.copy()
                     P_total0 = P_total.copy()
-                    A_optim0 = A_optim
-                    score0 = score
+                    A_optim0 = A_optim.copy()
+                    score0 = score.copy()
                     P += numpy.random.uniform(low=0., high=1., size=P.shape)
                     # P = shuffle_P(P, noise=1.)
                     logfile.write(f'\nalpha: {alpha:.3f}\nbeta: {beta:.3f}')
