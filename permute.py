@@ -14,6 +14,7 @@ from scipy.linalg import block_diag
 from pymol import cmd
 import Traj
 from tsp_solver.greedy import solve_tsp
+import IO
 
 
 def sigmoid(x):
@@ -290,6 +291,8 @@ if __name__ == '__main__':
     parser.add_argument('--n_iter', help='Minimizer iterations', type=int)
     parser.add_argument('--get_cmap', help='Compute the contact map from the given pdb and exit', type=str)
     parser.add_argument('--save_traj', help='Filename of an output dcd file to save optimization trajectory (optional)', type=str)
+    parser.add_argument('--fasta', help='Fasta file with the sequence to write in the output pdb', type=str)
+    parser.add_argument('--resids', help='column text file with the residue numbering', type=str)
     args = parser.parse_args()
 
     # if args.test:
@@ -334,5 +337,12 @@ if __name__ == '__main__':
     plt.savefig('cmap_optim.png')
     plt.clf()
     coords_out = permiter.X_P
-    cmd.load_coords(coords_out, 'shuf')
-    cmd.save('coords_optim.pdb', 'shuf')
+    if args.fasta is not None:
+        seq = IO.read_fasta(args.fasta)
+    else:
+        seq = None
+    if args.resids is not None:
+        resids = numpy.genfromtxt(args.resids, dtype=int)
+    else:
+        resids = None
+    IO.write_pdb('shuf', coords_out, 'coords_optim.pdb', seq=seq, resids=resids)
