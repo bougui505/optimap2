@@ -344,7 +344,7 @@ if __name__ == '__main__':
             seqs.extend(seq)
         if len(seqs) < permiter.n:
             seqs.extend(['DUM', ] * (permiter.n - len(seqs)))
-        seq = seqs
+        seq = numpy.asarray(seqs)[~permiter.mask]
     else:
         seq = None
     if args.resids is not None:
