@@ -348,7 +348,12 @@ if __name__ == '__main__':
     else:
         seq = None
     if args.resids is not None:
-        resids = numpy.genfromtxt(args.resids, dtype=int)
+        resids = []
+        for resfile in args.resids:
+            resids.extend(numpy.genfromtxt(resfile, dtype=int))
+        if len(resids) < permiter.n:
+            resids.extend([0, ] * (permiter.n - len(seqs)))
+        resids = numpy.asarray(resids)[~permiter.mask]
     else:
         resids = None
     IO.write_pdb('shuf', coords_out, 'coords_optim.pdb', seq=seq, resids=resids)
