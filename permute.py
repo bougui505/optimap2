@@ -158,6 +158,8 @@ class Permiter(object):
         p = B.shape[0]
         if n < p:
             X = add_coords(X, p - n)
+        # if n > p:
+        #     B = block_diag(B, numpy.identity(n - p))
         self.X = X
         self.B = B
         self.A = get_cmap(self.X)
@@ -350,9 +352,9 @@ if __name__ == '__main__':
     if args.resids is not None:
         resids = []
         for resfile in args.resids:
-            resids.extend(numpy.genfromtxt(resfile, dtype=int))
+            resids.extend(list(numpy.genfromtxt(resfile, dtype=int)))
         if len(resids) < permiter.n:
-            resids.extend([0, ] * (permiter.n - len(seqs)))
+            resids.extend([0, ] * (permiter.n - len(resids)))
         resids = numpy.asarray(resids)[~permiter.mask]
     else:
         resids = None
