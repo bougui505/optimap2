@@ -224,11 +224,20 @@ class Permiter(object):
                         global_min = score
                         P_total_best = P_total
                     local_min = score
+                    P_lm = P.copy()
+                    X_P_lm = X_P.copy()
+                    P_total_lm = P_total.copy()
+                    A_optim_lm = A_optim.copy()
+                    score_lm = score.copy()
                     # X_P_restart = X_P
                     # P_restart = P
                 scores.append(score)
-                logfile.write(f'\nepoch: {epoch}\nminiter: {miniter}\nscore: {score:.3f}')
                 if miniter > n_iter:
+                    P = P_lm
+                    X_P = X_P_lm
+                    P_total = P_total_lm
+                    A_optim = A_optim_lm
+                    score = score_lm
                     epoch += 1
                     score_steps.append(scores[-1])
                     local_min = numpy.inf
@@ -247,6 +256,9 @@ class Permiter(object):
                         P_total = P_total0.copy()
                         A_optim = A_optim0.copy()
                         score = score0.copy()
+                        logfile.write('\naccepted: 0')
+                    else:
+                        logfile.write('\naccepted: 1')
                     P0 = P.copy()
                     X_P0 = X_P.copy()
                     P_total0 = P_total.copy()
@@ -255,6 +267,7 @@ class Permiter(object):
                     P += numpy.random.uniform(low=0., high=1., size=P.shape)
                     # P = shuffle_P(P, noise=1.)
                     logfile.write(f'\nalpha: {alpha:.3f}\nbeta: {beta:.3f}')
+                logfile.write(f'\nepoch: {epoch}\nminiter: {miniter}\nscore: {score:.3f}')
                 logfile.write('\n')
                 sys.stdout.write(f'{epoch:4d}/{n_epoch:4d} {miniter:4d}/{n_iter:4d} {score:6.1f}/{global_min:6.1f} local_min: {local_min:6.1f} α: {alpha:1.1f} α_mean: {alpha_mean:1.1f} β: {beta:1.1g}\r')
                 sys.stdout.flush()
