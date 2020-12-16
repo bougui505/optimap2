@@ -23,9 +23,9 @@ def sigmoid(x):
 
 def get_coords(pdbfilename, object, selection=None):
     if selection is None:
-        selection = f'{object} and name CA'
+        selection = f'{object} and name CA and polymer.protein'
     else:
-        selection = f'{object} and name CA and {selection}'
+        selection = f'{object} and name CA and {selection} and polymer.protein'
     cmd.load(pdbfilename, object=object)
     cmd.remove(f'not ({selection}) and {object}')
     coords = cmd.get_coords(selection=object)
@@ -214,7 +214,7 @@ class Permiter(object):
                     traj.append(X_P)
                 mask = zero_mask(X_P)
                 score = self.get_score(A_optim, mask)
-                if score == 0.:
+                if numpy.isclose(score, 0.):
                     print()
                     print("Early stop")
                     break
