@@ -111,11 +111,11 @@ if args.optimize is not None:
         sys.stdout.write(f"t_mcc: {t} {mcc}\n")
     ind = numpy.argmax(mccs)
     sys.stdout.write(f"threshold: {thresholds[ind]}\nMCC: {mccs[ind]}\n")
-    sys.exit(0)
+    args.threshold = thresholds[ind]
 if args.threshold is not None:
     cmap = numpy.float_(cmap > args.threshold)
 
-print(f'Contact map shape: {cmap.shape}')
+print(f'cmap_shape: {cmap.shape}')
 outbasename = os.path.split(os.path.splitext(args.cmap)[0])[1]
 numpy.save(f'{outbasename}.npy', cmap)
 numpy.save(f'{outbasename}.top.npy', cmap.diagonal(offset=1))
