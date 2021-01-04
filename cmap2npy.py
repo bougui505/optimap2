@@ -109,6 +109,7 @@ if args.optimize is not None:
         mcc = metrics.MCC
         mccs.append(mcc)
         sys.stdout.write(f"t_mcc: {t} {mcc}\n")
+    mccs = numpy.nan_to_num(mccs)
     ind = numpy.argmax(mccs)
     sys.stdout.write(f"threshold: {thresholds[ind]}\nMCC: {mccs[ind]}\n")
     args.threshold = thresholds[ind]
