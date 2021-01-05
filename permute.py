@@ -315,7 +315,7 @@ if __name__ == '__main__':
     #     sys.exit(0)
 
     if args.get_cmap is not None:
-        coords = get_coords(args.get_cmap, 'pdbin')
+        coords = get_coords(args.get_cmap, 'pdbin and (alt "" or alt "A")')
         cmap = get_cmap(coords)
         basename = os.path.splitext(args.get_cmap)[0]
         numpy.save(f'{basename}_cmap.npy', cmap)
