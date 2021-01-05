@@ -17,6 +17,8 @@ import argparse
 import numpy
 import matplotlib.pyplot as plt
 import Metrics
+import warnings
+warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser(description='Convert a Casp contact map to a npy file. See: https://predictioncenter.org/casp14/index.cgi?page=format#RR for the input file format')
 parser.add_argument('--cmap', type=str, help='CASP contact map file', required=True)
