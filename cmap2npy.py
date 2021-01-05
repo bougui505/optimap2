@@ -85,8 +85,11 @@ if args.ss is not None:
     for r in sel:
         for rnext in [r + 2, r + 3, r + 4]:
             if rnext in sel:
-                cmap[mapping[r], mapping[rnext]] = ss[rnext][0]
-                cmap[mapping[rnext], mapping[r]] = ss[rnext][0]
+                try:
+                    cmap[mapping[r], mapping[rnext]] = ss[rnext][0]
+                    cmap[mapping[rnext], mapping[r]] = ss[rnext][0]
+                except KeyError:
+                    pass
 
 # First diagonal (topology):
 for r in sel:
