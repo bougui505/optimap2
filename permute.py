@@ -13,7 +13,7 @@ import scipy.spatial.distance as distance
 from scipy.linalg import block_diag
 from pymol import cmd
 import Traj
-from tsp_solver.greedy import solve_tsp
+# from tsp_solver.greedy import solve_tsp
 import IO
 
 
@@ -51,20 +51,20 @@ def get_cmap(coords, threshold=8., ca_switch=True, dist_ca=3.8, sigma_ca=0.1):
     return cmap
 
 
-def topofix(coords, dist_ca=3.8, sigma_ca=0.1, mask=None):
-    def get_topo(coords):
-        pdist = distance.squareform(distance.pdist(coords))
-        topo = numpy.exp(-(pdist - dist_ca)**2 / (2 * sigma_ca**2))
-        return topo
-    n = coords.shape[0]
-    topo = get_topo(coords)
-    if mask is not None:
-        topo[mask] = 0.5
-    col_ind = solve_tsp(1. - topo, endpoints=(0, n - 1))
-    row_ind = numpy.arange(n)
-    P = numpy.zeros((n, n))
-    P[row_ind, col_ind] = 1.
-    return P
+# def topofix(coords, dist_ca=3.8, sigma_ca=0.1, mask=None):
+#     def get_topo(coords):
+#         pdist = distance.squareform(distance.pdist(coords))
+#         topo = numpy.exp(-(pdist - dist_ca)**2 / (2 * sigma_ca**2))
+#         return topo
+#     n = coords.shape[0]
+#     topo = get_topo(coords)
+#     if mask is not None:
+#         topo[mask] = 0.5
+#     col_ind = solve_tsp(1. - topo, endpoints=(0, n - 1))
+#     row_ind = numpy.arange(n)
+#     P = numpy.zeros((n, n))
+#     P[row_ind, col_ind] = 1.
+#     return P
 
 
 def permoptim(A, B, P=None):
@@ -179,8 +179,13 @@ class Permiter(object):
         beta = -numpy.log(0.5) / delta50
         return beta
 
-    def iterate(self, n_epoch=10, n_iter=1000, alpha_target=0.234,
-                save_traj=False, topology=None, outtrajfilename='permiter.dcd'):
+    def iterate(self,
+                n_epoch=10,
+                n_iter=1000,
+                alpha_target=0.234,
+                save_traj=False,
+                topology=None,
+                outtrajfilename='permiter.dcd'):
         X_P, P = permute_coords(self.X, self.P, random=True)
         P_total = P.copy()
         A_optim = get_cmap(X_P)
@@ -269,7 +274,9 @@ class Permiter(object):
                     logfile.write(f'\nalpha: {alpha:.3f}\nbeta: {beta:.3f}')
                 logfile.write(f'\nepoch: {epoch}\nminiter: {miniter}\nscore: {score:.3f}')
                 logfile.write('\n')
-                sys.stdout.write(f'{epoch:4d}/{n_epoch:4d} {miniter:4d}/{n_iter:4d} {score:6.1f}/{global_min:6.1f} local_min: {local_min:6.1f} α: {alpha:1.1f} α_mean: {alpha_mean:1.1f} β: {beta:1.1g}\r')
+                sys.stdout.write(
+                    f'{epoch:4d}/{n_epoch:4d} {miniter:4d}/{n_iter:4d} {score:6.1f}/{global_min:6.1f} local_min: {local_min:6.1f} α: {alpha:1.1f} α_mean: {alpha_mean:1.1f} β: {beta:1.1g}\r'
+                )
                 sys.stdout.flush()
         print()
         if save_traj:
@@ -301,11 +308,18 @@ if __name__ == '__main__':
     # parser.add_argument('--test', default=False, action='store_true', help='test the code')
     parser.add_argument('--pdb1', help='pdb filename of coordinates to permute', type=str)
     parser.add_argument('--pdb2', help='pdb filename of reference coordinates', type=str)
-    parser.add_argument('--cmap', help='npy file of the target -- reference -- contact map. Multiple files can be given. In that case, the matrices will be concatenated as a block diagonal matrix', nargs='+', type=str)
+    parser.add_argument(
+        '--cmap',
+        help=
+        'npy file of the target -- reference -- contact map. Multiple files can be given. In that case, the matrices will be concatenated as a block diagonal matrix',
+        nargs='+',
+        type=str)
     parser.add_argument('--n_epoch', help='Number of epochs', type=int)
     parser.add_argument('--n_iter', help='Minimizer iterations', type=int)
     parser.add_argument('--get_cmap', help='Compute the contact map from the given pdb and exit', type=str)
-    parser.add_argument('--save_traj', help='Filename of an output dcd file to save optimization trajectory (optional)', type=str)
+    parser.add_argument('--save_traj',
+                        help='Filename of an output dcd file to save optimization trajectory (optional)',
+                        type=str)
     parser.add_argument('--fasta', help='Fasta file with the sequence to write in the output pdb', nargs='+', type=str)
     parser.add_argument('--resids', help='column text file with the residue numbering', nargs='+', type=str)
     args = parser.parse_args()
@@ -346,7 +360,8 @@ if __name__ == '__main__':
     plt.clf()
     A_optim, P = permiter.iterate(n_epoch=args.n_epoch,
                                   n_iter=args.n_iter,
-                                  save_traj=save_traj, topology=args.pdb1,
+                                  save_traj=save_traj,
+                                  topology=args.pdb1,
                                   outtrajfilename=args.save_traj)
     plt.matshow(permiter.A_P)
     plt.savefig('cmap_optim.png')
@@ -358,7 +373,9 @@ if __name__ == '__main__':
             seq = IO.read_fasta(fasta)
             seqs.extend(seq)
         if len(seqs) < permiter.n:
-            seqs.extend(['DUM', ] * (permiter.n - len(seqs)))
+            seqs.extend([
+                'DUM',
+            ] * (permiter.n - len(seqs)))
         seq = numpy.asarray(seqs)[~permiter.mask]
     else:
         seq = None
@@ -367,7 +384,9 @@ if __name__ == '__main__':
         for resfile in args.resids:
             resids.extend(list(numpy.genfromtxt(resfile, dtype=int)))
         if len(resids) < permiter.n:
-            resids.extend([0, ] * (permiter.n - len(resids)))
+            resids.extend([
+                0,
+            ] * (permiter.n - len(resids)))
         resids = numpy.asarray(resids)[~permiter.mask]
     else:
         resids = None
