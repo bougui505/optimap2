@@ -314,8 +314,8 @@ if __name__ == '__main__':
         'npy file of the target -- reference -- contact map. Multiple files can be given. In that case, the matrices will be concatenated as a block diagonal matrix',
         nargs='+',
         type=str)
-    parser.add_argument('--n_epoch', help='Number of epochs', type=int)
-    parser.add_argument('--n_iter', help='Minimizer iterations', type=int)
+    parser.add_argument('--n_epoch', help='Number of epochs', type=int, default=200)
+    parser.add_argument('--n_iter', help='Minimizer iterations', type=int, default=100)
     parser.add_argument('--get_cmap', help='Compute the contact map from the given pdb and exit', type=str)
     parser.add_argument('--save_traj',
                         help='Filename of an output dcd file to save optimization trajectory (optional)',
