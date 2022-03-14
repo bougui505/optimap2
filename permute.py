@@ -329,16 +329,16 @@ if __name__ == '__main__':
     #     sys.exit(0)
 
     if args.get_cmap is not None:
-        coords = get_coords(args.get_cmap, 'pdbin and (alt "" or alt "A")')
+        coords = get_coords(args.get_cmap, 'pdbin', '(alt "" or alt "A")')
         cmap = get_cmap(coords)
         basename = os.path.splitext(args.get_cmap)[0]
         numpy.save(f'{basename}_cmap.npy', cmap)
         sys.exit(0)
 
-    coords1 = get_coords(args.pdb1, 'shuf')
+    coords1 = get_coords(args.pdb1, 'shuf', '(alt "" or alt "A")')
     A = get_cmap(coords1)
     if args.pdb2 is not None:
-        coords_ref = get_coords(args.pdb2, 'ref')
+        coords_ref = get_coords(args.pdb2, 'ref', '(alt "" or alt "A")')
         B = get_cmap(coords_ref)
     else:
         cmaps = []
