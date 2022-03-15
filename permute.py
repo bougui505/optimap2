@@ -353,7 +353,7 @@ if __name__ == '__main__':
         save_traj = False
     permiter = Permiter(coords1, B)
     plt.matshow(permiter.A)
-    plt.savefig('cmap_shuf.png')
+    plt.savefig('cmap_inp.png')
     plt.clf()
     plt.matshow(permiter.B)
     plt.savefig('cmap_ref.png')
